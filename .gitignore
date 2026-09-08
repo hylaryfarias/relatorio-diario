@@ -1,0 +1,6 @@
+saida/
+saida_teste*/
+*.pdf
+entrada.json
+__pycache__/
+*.pyc
