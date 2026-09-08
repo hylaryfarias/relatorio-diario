@@ -35,11 +35,22 @@ Quatro parcelas, somadas no total:
 |---|---|
 | Cartao + Pix | credito + debito + pix do periodo atual (venda bruta) |
 | Voucher D+30 | voucher do PDF de `--mes-anterior` |
+| Repasse do iFood | `PAGAMENTO ONLINE` da semana seg-dom anterior, dos PDFs de `--ifood`, so nas quartas |
 | Vendas a prazo | titulos de `vendas_a_prazo.csv` que vencem na data prevista |
 | B2B iKI | so com `--b2b` (sem base ainda) |
 
-`PAGAMENTO ONLINE` fica fora de proposito: e app/marketplace, com repasse
-proprio.
+`PAGAMENTO ONLINE` e o iFood: fica fora da parcela diaria de cartao + Pix
+porque o repasse e semanal. Ele cai na **quarta-feira**, referente a semana
+fechada de **segunda a domingo anterior** (quarta 09/09 -> 31/08 a 06/09):
+
+```bash
+python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf \
+    --dia-previsto 09/09/2026 --ifood semana1.pdf --ifood semana2.pdf
+```
+
+A flag `--ifood` pode repetir, porque a janela costuma cruzar a virada do mes.
+O script calcula a janela a partir da data prevista, ignora dias de fora e
+avisa quais dos sete dias faltaram.
 
 ## vendas_a_prazo.csv
 

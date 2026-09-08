@@ -71,13 +71,35 @@ Mudança de agrupamento se faz lá, não na mão na resposta.
 |---|---|
 | **Cartão + Pix** | `TEF - CREDITO` + `TEF - DEBITO` + `PIX MAQUININHA` do período atual, **já agrupados** (ou seja, com CARTAO CREDITO e CARTAO DEBITO dentro). Soma da venda **bruta**, como ela pediu. |
 | **Voucher D+30** | soma de `VOUCHER` + `TEF - VOUCHER` + `TEF - TICKET` do PDF de `--mes-anterior`. Voucher liquida em 30 dias, então o previsto de hoje é a venda de voucher de um mês atrás. |
+| **Repasse do iFood** | `PAGAMENTO ONLINE` da semana **segunda a domingo anterior**, dos PDFs de `--ifood`. Só entra **quando a data prevista é quarta-feira** — é quando o iFood repassa. |
 | **Vendas a prazo** | `vendas_a_prazo.csv`, só os títulos cujo `VENCIMENTO` é **exatamente** a data prevista. Fora dessa data a parcela não entra. |
 | **B2B iKI** | ainda **sem base**. Entra só quando vier `--b2b`. |
 
-`PAGAMENTO ONLINE` fica **fora** da entrada prevista de propósito — é
-app/marketplace, com repasse próprio. Isso confere com o modelo que ela usa: no
-print de 27/08 o previsto (R$ 101.481,14) bate com crédito + débito + Pix
+`PAGAMENTO ONLINE` **é o iFood** e fica fora da parcela diária de cartão + Pix
+porque tem repasse próprio, semanal. Isso confere com o modelo dela: no print
+de 27/08 o previsto (R$ 101.481,14) bate com crédito + débito + Pix
 (R$ 102.999,18) e não com nada que inclua o pagamento online.
+
+### A regra do iFood
+
+O repasse cai na **quarta-feira**, referente à semana fechada de **segunda a
+domingo anterior**. Exemplo conferido: quarta 09/09/2026 → janela 31/08 a
+06/09.
+
+```bash
+python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf \
+    --dia-previsto 09/09/2026 --ifood semana1.pdf --ifood semana2.pdf --saida saida
+```
+
+`--ifood` pode repetir, porque a janela quase sempre cruza a virada do mês e
+sai em mais de um relatório. O script:
+
+- calcula a janela sozinho a partir da data prevista;
+- **ignora** dias que caiam fora dela (avisa quais);
+- **avisa quais dos 7 dias faltaram** e diz que o repasse está subestimado —
+  nesse caso, pedir os relatórios que faltam antes de mandar o texto;
+- avisa quando a data prevista é quarta e o `--ifood` não veio;
+- ignora `--ifood` quando a data prevista não é quarta.
 
 Aquele print de 27/08 saiu **1,47% abaixo** da soma bruta, o que tem cara de
 líquido de MDR. O script entrega o **bruto**, que foi a instrução dela. Se
@@ -163,13 +185,14 @@ passadas aparecem na mensagem.
 4. **Sempre reportar no chat** a diferença entre previsto e recebido, e por
    forma quando der, para ela ver de onde veio o desvio.
 
-## Pendência conhecida no modelo dela
+## Sobre o exemplo de 04/09
 
-O exemplo que ela mandou (04/09) traz `VALOR RECEBIDO R$ 128.115,36`, mas as
-cinco formas somam **R$ 123.463,53** — faltam **R$ 4.651,83**. A diferença
-sobre a previsão (R$ 18.115,36) confere com o total informado, então o furo
-está no detalhamento: ou falta uma forma (dinheiro? repasse de app?), ou um dos
-valores está errado. **Perguntar antes de mandar um texto assim.**
+Os valores daquele modelo **não são reais** — ela confirmou que era só para
+mostrar o formato. Por isso a soma das formas (R$ 123.463,53) não fechava com
+o total do texto (R$ 128.115,36). Não é para caçar essa diferença.
+
+A trava do `--total-informado` continua valendo para os envios de verdade: se
+a soma não fechar com o total que ela passar, avisar antes de mandar.
 
 ## Conciliação
 

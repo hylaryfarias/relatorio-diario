@@ -40,8 +40,14 @@ GRUPOS = OrderedDict([
 # CARTAO CREDITO dentro dele).
 #
 # Cartao + Pix: o que liquida rapido e entra na previsao do proximo dia.
-# PAGAMENTO ONLINE fica FORA de proposito (app/marketplace, repasse proprio).
+# PAGAMENTO ONLINE fica fora daqui porque tem repasse proprio -- ver IFOOD.
 CARTAO_E_PIX = ['TEF - CREDITO', 'TEF - DEBITO', 'PIX MAQUININHA']
+
+# PAGAMENTO ONLINE e o iFood. O repasse cai na QUARTA, referente a semana
+# fechada de segunda a domingo anterior (quarta 09/09 -> 31/08 a 06/09). Entao
+# so entra na previsao quando o dia previsto e uma quarta-feira.
+IFOOD_FORMA = 'PAGAMENTO ONLINE'
+QUARTA = 2  # datetime.date.weekday(): segunda=0
 
 # Voucher: liquida em D+30, entao o previsto de hoje sai das vendas de voucher
 # do mesmo periodo do mes anterior (--mes-anterior).
@@ -115,6 +121,36 @@ def ler_pdf(caminho):
             valor = to_float(achou_linha.group(2))
             dias[dia_atual][forma] = dias[dia_atual].get(forma, 0.0) + valor
     return dias, cnpj
+
+
+def janela_ifood(dia_previsto):
+    """Semana de referencia do repasse do iFood para uma data prevista.
+
+    Devolve (segunda, domingo) como date, ou None se a data nao for quarta.
+    """
+    data = datetime.datetime.strptime(dia_previsto, '%d/%m/%Y').date()
+    if data.weekday() != QUARTA:
+        return None
+    domingo = data - datetime.timedelta(days=3)
+    return domingo - datetime.timedelta(days=6), domingo
+
+
+def somar_ifood(pdfs, janela):
+    """Soma PAGAMENTO ONLINE dos dias dentro da janela. Devolve (total, faltando)."""
+    esperados = [janela[0] + datetime.timedelta(days=n) for n in range(7)]
+    por_dia = {}
+    for caminho in pdfs:
+        dias, _ = ler_pdf(caminho)
+        for texto_dia, formas in dias.items():
+            data = datetime.datetime.strptime(texto_dia, '%d/%m/%Y').date()
+            if janela[0] <= data <= janela[1]:
+                por_dia[data] = formas.get(IFOOD_FORMA, 0.0)
+            else:
+                print(f'AVISO: {texto_dia} esta fora da janela do iFood '
+                      f'({janela[0]:%d/%m} a {janela[1]:%d/%m}) e foi ignorado.',
+                      file=sys.stderr)
+    faltando = [d for d in esperados if d not in por_dia]
+    return sum(por_dia.values()), faltando
 
 
 def ler_a_prazo(caminho):
@@ -248,15 +284,16 @@ def renderizar_png(html, destino):
     return True
 
 
-PARCELAS = ('vendas', 'voucher', 'a_prazo', 'b2b')
+PARCELAS = ('vendas', 'voucher', 'ifood', 'a_prazo', 'b2b')
 
 
 def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
-                     b2b=None, override=None):
+                     ifood=None, b2b=None, override=None):
     """Monta as parcelas da entrada prevista.
 
     vendas   -> credito + debito + pix do periodo atual (venda bruta)
     voucher  -> voucher do mesmo periodo do mes anterior (D+30)
+    ifood    -> PAGAMENTO ONLINE da semana seg-dom anterior, so nas quartas
     a_prazo  -> titulos a prazo que vencem exatamente em dia_previsto
     b2b      -> iKI Produtos Alimenticios; None enquanto nao houver base
     """
@@ -265,6 +302,7 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
         'vendas': sum(agrupado.get(f, 0.0) for f in CARTAO_E_PIX),
         'voucher': (sum(agrupado_anterior.get(f, 0.0) for f in FORMAS_VOUCHER)
                     if agrupado_anterior is not None else None),
+        'ifood': ifood,
         'a_prazo': sum(t['valor'] for t in vencendo) if vencendo else None,
         'b2b': b2b,
         'titulos_a_prazo': vencendo,
@@ -301,6 +339,11 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
         partes.append(f'· R$ {brl(entrada["voucher"])} de recebimento de períodos '
                       f'anteriores (Voucher D+30);')
 
+    if entrada['ifood'] is not None:
+        inicio, fim = entrada['janela_ifood']
+        partes.append(f'· R$ {brl(entrada["ifood"])} de repasse do iFood, '
+                      f'referente a {inicio:%d/%m} a {fim:%d/%m};')
+
     if entrada['a_prazo'] is not None:
         quantos = len(entrada['titulos_a_prazo'])
         partes.append(f'· R$ {brl(entrada["a_prazo"])} de vendas a prazo com '
@@ -322,6 +365,9 @@ def main():
     parser.add_argument('--saida', default='.', help='pasta de saida (padrao: atual)')
     parser.add_argument('--mes-anterior', dest='mes_anterior',
                         help='PDF do MESMO periodo do mes anterior, para o voucher D+30')
+    parser.add_argument('--ifood', action='append', default=[], metavar='PDF',
+                        help='PDF(s) cobrindo a semana seg-dom do repasse do iFood; '
+                             'pode repetir a flag. So vale quando a data prevista e quarta')
     parser.add_argument('--b2b', type=float, help='valor do B2B da iKI, quando houver base')
     parser.add_argument('--a-prazo', dest='a_prazo', default=A_PRAZO_PADRAO,
                         help='CSV de vendas a prazo (padrao: vendas_a_prazo.csv do projeto)')
@@ -374,10 +420,28 @@ def main():
         ultimo = datetime.datetime.strptime(dias_usados[-1], '%d/%m/%Y').date()
         dia_previsto = (ultimo + datetime.timedelta(days=1)).strftime('%d/%m/%Y')
 
+    janela = janela_ifood(dia_previsto)
+    ifood, ifood_faltando = None, []
+    if args.ifood and janela is None:
+        print(f'AVISO: {dia_previsto} nao e quarta-feira, entao nao ha repasse de '
+              f'iFood nesse dia. Os PDFs de --ifood foram ignorados.', file=sys.stderr)
+    elif args.ifood:
+        ifood, ifood_faltando = somar_ifood(args.ifood, janela)
+        if ifood_faltando:
+            print(f'AVISO: faltam dias na janela do iFood '
+                  f'({janela[0]:%d/%m} a {janela[1]:%d/%m}): '
+                  f'{", ".join(f"{d:%d/%m}" for d in ifood_faltando)}. '
+                  f'O repasse esta SUBESTIMADO.', file=sys.stderr)
+    elif janela is not None:
+        print(f'AVISO: {dia_previsto} e quarta-feira, entao tem repasse de iFood '
+              f'de {janela[0]:%d/%m} a {janela[1]:%d/%m}. Passe os PDFs em --ifood.',
+              file=sys.stderr)
+
     titulos = ler_a_prazo(args.a_prazo)
     override = json.load(open(args.entrada)) if args.entrada else None
     entrada = calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
-                               args.b2b, override)
+                               ifood, args.b2b, override)
+    entrada['janela_ifood'] = janela
 
     txt = os.path.join(args.saida, 'texto_whatsapp.txt')
     with open(txt, 'w') as arquivo:
@@ -412,6 +476,14 @@ def main():
             if forma in agrupado_anterior:
                 print(f'    {forma:<26} R$ {brl(agrupado_anterior[forma]):>13}')
         print(f'  {"= voucher D+30":<28} R$ {brl(entrada["voucher"]):>13}')
+
+    if entrada['ifood'] is None:
+        print('  repasse iFood                '
+              + ('nao e quarta-feira' if janela is None else 'FALTA --ifood'))
+    else:
+        print(f'  {"repasse iFood":<28} R$ {brl(entrada["ifood"]):>13} '
+              f'({janela[0]:%d/%m} a {janela[1]:%d/%m}'
+              + (f', faltam {len(ifood_faltando)} dia(s))' if ifood_faltando else ')'))
 
     if entrada['a_prazo'] is None:
         proximos = sorted({t['vencimento'] for t in titulos})
