@@ -1,9 +1,13 @@
 # relatorio-diario
 
-Gera o quadrinho de vendas por forma de pagamento e o texto do WhatsApp a
-partir do PDF `Vendas por forma de pagamento - por dia` do Cloud Commerce.
+Os dois envios diarios do financeiro do Grupo Ragga, no WhatsApp:
 
-## Uso
+1. **`gerar_relatorio.py`** — venda bruta por forma de pagamento (quadrinho em
+   PNG) e a entrada prevista, a partir do PDF `Vendas por forma de pagamento -
+   por dia` do Cloud Commerce.
+2. **`gerar_entradas.py`** — o recebimento real do dia contra aquela previsao.
+
+## Envio 1 — venda bruta e entrada prevista
 
 ```bash
 # uso normal: PDF do periodo + PDF do mesmo intervalo do mes anterior
@@ -54,3 +58,31 @@ Mais Chromium para o PNG (opcional: sem ele o script salva um `.html`).
 
 As regras de agrupamento estao no dicionario `GRUPOS`, no topo de
 `gerar_relatorio.py`. Detalhes do processo em [CLAUDE.md](CLAUDE.md).
+
+## Envio 2 — entradas do dia
+
+```bash
+python3 gerar_entradas.py --data 04/09/2026 --previsao 110000 \
+    --pix 24739.28 --debito 44730.61 --credito 46217.25 \
+    --voucher 6730.53 --b2b 1045.86 --saida saida
+```
+
+Gera `saida/texto_entradas.txt`. A `--previsao` e a que foi mandada para aquele
+dia no envio 1. Formas: `--pix`, `--debito`, `--credito`, `--voucher`, `--b2b`,
+`--dinheiro`, `--online` — so as informadas aparecem no texto.
+
+O `VALOR RECEBIDO` e sempre a soma das formas. Se voce tiver o total na mao,
+passe em `--total-informado`: o script confere e avisa quando nao fecha, em vez
+de mandar um numero que nao soma.
+
+Tambem aceita `--dados recebimentos.json`:
+
+```json
+{
+  "data": "04/09/2026",
+  "previsao": 110000.00,
+  "recebido": {"PIX": 24739.28, "Débito": 44730.61, "Crédito": 46217.25,
+               "Voucher": 6730.53, "B2B": 1045.86},
+  "total_informado": 128115.36
+}
+```

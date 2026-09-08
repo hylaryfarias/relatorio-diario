@@ -1,8 +1,16 @@
 # Relatório diário de vendas — Grupo Ragga
 
-A Hylary manda **todo dia** o PDF `Vendas por forma de pagamento - por dia`
-(Cloud Commerce) neste chat. O trabalho é sempre o mesmo: agrupar as formas de
-pagamento, gerar o quadrinho e o texto para ela mandar no WhatsApp.
+São **dois envios** por dia, e cada um tem seu script:
+
+| Envio | Quando | Script | Saída |
+|---|---|---|---|
+| **1. Venda bruta + entrada prevista** | de manhã, quando ela manda os PDFs | `gerar_relatorio.py` | quadrinho PNG + `texto_whatsapp.txt` |
+| **2. Entradas do dia (recebimento real)** | depois, quando ela passa o que entrou | `gerar_entradas.py` | `texto_entradas.txt` |
+
+O envio 2 é o **complemento** do 1: ele confronta o que entrou de verdade
+contra a previsão que foi mandada no envio 1.
+
+# Envio 1 — venda bruta e entrada prevista
 
 ## O que fazer quando o PDF chegar
 
@@ -114,6 +122,54 @@ conferir `ROW_RE` e `DAY_RE`.
   ou o que estiver no PATH; dá para apontar com `CHROME_PATH`). Sem Chromium o
   script salva `vendas_card.html` em vez do PNG.
 - `pillow` (opcional) para recortar a sobra branca do print.
+
+# Envio 2 — entradas do dia (recebimento real)
+
+Quando ela passar os valores que entraram:
+
+```bash
+python3 gerar_entradas.py --data 04/09/2026 --previsao 110000 \
+    --pix 24739.28 --debito 44730.61 --credito 46217.25 \
+    --voucher 6730.53 --b2b 1045.86 --saida saida
+```
+
+Ou com `--dados recebimentos.json`:
+
+```json
+{
+  "data": "04/09/2026",
+  "previsao": 110000.00,
+  "recebido": {"PIX": 24739.28, "Débito": 44730.61, "Crédito": 46217.25,
+               "Voucher": 6730.53, "B2B": 1045.86},
+  "total_informado": 128115.36
+}
+```
+
+Formas disponíveis, na ordem em que saem no texto: `--pix`, `--debito`,
+`--credito`, `--voucher`, `--b2b`, `--dinheiro`, `--online`. Só as que forem
+passadas aparecem na mensagem.
+
+## Regras do envio 2
+
+1. **`--previsao` é a previsão que foi mandada para aquele dia** no envio 1 —
+   não recalcular por outro caminho. Sem ela o script para: comparar
+   recebimento com uma previsão inventada é pior do que não mandar nada.
+2. **O `VALOR RECEBIDO` é sempre a soma das formas.** Nunca digitar um total à
+   parte. Se ela informar um total, passar em `--total-informado`: o script
+   confere e avisa se não fechar, mas o texto sai com a soma.
+3. O tom muda sozinho conforme o resultado: acima da previsão sai `✅` +
+   `🟢 ... ACIMA` + 🚀 no resumo; abaixo sai `⚠️` + `🔴 ... ABAIXO` e um resumo
+   sem comemoração; empate sai `⚪ EM LINHA COM A PREVISÃO`.
+4. **Sempre reportar no chat** a diferença entre previsto e recebido, e por
+   forma quando der, para ela ver de onde veio o desvio.
+
+## Pendência conhecida no modelo dela
+
+O exemplo que ela mandou (04/09) traz `VALOR RECEBIDO R$ 128.115,36`, mas as
+cinco formas somam **R$ 123.463,53** — faltam **R$ 4.651,83**. A diferença
+sobre a previsão (R$ 18.115,36) confere com o total informado, então o furo
+está no detalhamento: ou falta uma forma (dinheiro? repasse de app?), ou um dos
+valores está errado. **Perguntar antes de mandar um texto assim.**
 
 ## Conciliação
 
