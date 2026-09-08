@@ -11,6 +11,8 @@ Uso:
 """
 
 import argparse
+import csv as csvmod
+import datetime
 import json
 import os
 import re
@@ -32,6 +34,24 @@ GRUPOS = OrderedDict([
 ])
 
 # VOUCHER, TEF - VOUCHER e TEF - TICKET ficam separados de proposito.
+
+# ---------------------------------------------------------------------------
+# Entrada prevista. Nomes JA AGRUPADOS (portanto 'TEF - CREDITO' ja carrega
+# CARTAO CREDITO dentro dele).
+#
+# Cartao + Pix: o que liquida rapido e entra na previsao do proximo dia.
+# PAGAMENTO ONLINE fica FORA de proposito (app/marketplace, repasse proprio).
+CARTAO_E_PIX = ['TEF - CREDITO', 'TEF - DEBITO', 'PIX MAQUININHA']
+
+# Voucher: liquida em D+30, entao o previsto de hoje sai das vendas de voucher
+# do mesmo periodo do mes anterior (--mes-anterior).
+FORMAS_VOUCHER = ['VOUCHER', 'TEF - VOUCHER', 'TEF - TICKET']
+
+# Venda a prazo (B2B das BGs, Casaria etc.): tabela de recebiveis com data de
+# vencimento em vendas_a_prazo.csv. Cada titulo entra na entrada prevista so no
+# dia do seu vencimento -- nao no dia da venda, que ja foi na venda bruta.
+A_PRAZO_PADRAO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              'vendas_a_prazo.csv')
 
 ROW_RE = re.compile(r'^(.+?)\s+R\$\s*([\d\.]+,\d{2})\s+([\d\.]+,?\d*)\s+R\$\s*([\d\.]+,\d{2})$')
 DAY_RE = re.compile(r'^Data:\s*(\d{2}/\d{2}/\d{4})')
@@ -97,7 +117,31 @@ def ler_pdf(caminho):
     return dias, cnpj
 
 
-def agrupar(dias):
+def ler_a_prazo(caminho):
+    """Le a tabela de vendas a prazo. Devolve [] se o arquivo nao existir."""
+    if not caminho or not os.path.isfile(caminho):
+        return []
+    titulos = []
+    with open(caminho, newline='', encoding='utf-8') as arquivo:
+        for numero, linha in enumerate(csvmod.DictReader(arquivo, delimiter=';'), start=2):
+            valor = (linha.get('VALOR') or '').strip()
+            vencimento = (linha.get('VENCIMENTO') or '').strip()
+            if not valor or not vencimento:
+                continue
+            try:
+                titulos.append({
+                    'razao': (linha.get('RAZAO SOCIAL') or '').strip(),
+                    'valor': to_float(valor),
+                    'vencimento': vencimento,
+                    'origem': (linha.get('ORIGEM DO CONSUMO') or '').strip(),
+                })
+            except ValueError:
+                print(f'AVISO: valor invalido na linha {numero} de {caminho}: {valor!r}',
+                      file=sys.stderr)
+    return titulos
+
+
+def agrupar(dias, rotulo='PDF do periodo'):
     """Consolida os dias num bloco unico e aplica GRUPOS. Valida a soma."""
     membro_para_grupo = {m: destino for destino, ms in GRUPOS.items() for m in ms}
     bruto, agrupado, composicao = OrderedDict(), OrderedDict(), OrderedDict()
@@ -116,8 +160,8 @@ def agrupar(dias):
 
     ignorados = [m for ms in GRUPOS.values() for m in ms if m not in bruto]
     if ignorados:
-        print(f'AVISO: formas de GRUPOS ausentes neste PDF: {", ".join(ignorados)}',
-              file=sys.stderr)
+        print(f'AVISO: {rotulo}: formas de GRUPOS que nao aparecem nele: '
+              f'{", ".join(ignorados)}', file=sys.stderr)
 
     return agrupado, composicao
 
@@ -204,41 +248,69 @@ def renderizar_png(html, destino):
     return True
 
 
-def montar_texto(dias_usados, total, entrada):
-    """Texto pronto para colar no WhatsApp."""
+PARCELAS = ('vendas', 'voucher', 'a_prazo', 'b2b')
+
+
+def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
+                     b2b=None, override=None):
+    """Monta as parcelas da entrada prevista.
+
+    vendas   -> credito + debito + pix do periodo atual (venda bruta)
+    voucher  -> voucher do mesmo periodo do mes anterior (D+30)
+    a_prazo  -> titulos a prazo que vencem exatamente em dia_previsto
+    b2b      -> iKI Produtos Alimenticios; None enquanto nao houver base
+    """
+    vencendo = [t for t in titulos if t['vencimento'] == dia_previsto]
+    entrada = {
+        'vendas': sum(agrupado.get(f, 0.0) for f in CARTAO_E_PIX),
+        'voucher': (sum(agrupado_anterior.get(f, 0.0) for f in FORMAS_VOUCHER)
+                    if agrupado_anterior is not None else None),
+        'a_prazo': sum(t['valor'] for t in vencendo) if vencendo else None,
+        'b2b': b2b,
+        'titulos_a_prazo': vencendo,
+    }
+    if override:
+        entrada.update({k: v for k, v in override.items() if k in PARCELAS})
+    entrada['total'] = sum(entrada[p] for p in PARCELAS if entrada[p] is not None)
+    return entrada
+
+
+def montar_texto(dias_usados, total, entrada, dia_previsto):
+    """Texto pronto para colar no WhatsApp.
+
+    So entram no texto as parcelas que tem numero. O que falta sai no console,
+    para nao mandar "[PREENCHER]" para a diretoria.
+    """
     primeiro, ultimo = dias_usados[0], dias_usados[-1]
-    dia_a, mes_a, ano_a = (int(p) for p in ultimo.split('/'))
-    proximo = f'{dia_a + 1:02d}/{mes_a:02d}'  # ajuste na mao se cair virada de mes
 
     if primeiro == ultimo:
         cabecalho = f'📊 *VENDA BRUTA DO DIA | {primeiro[:5]}*'
+        referencia = 'do dia'
     else:
         cabecalho = f'📊 *VENDA BRUTA | {primeiro[:5]} a {ultimo[:5]}*'
+        referencia = 'do período'
 
     partes = [cabecalho, '', f'R$ {brl(total)}', '',
-              f'💰 *ENTRADA PREVISTA PRO DIA {proximo}*', '']
+              f'💰 *ENTRADA PREVISTA PRO DIA {dia_previsto[:5]}*', '',
+              f'*R$ {brl(entrada["total"])}*', '']
 
-    if entrada:
-        vendas = entrada.get('vendas_dia')
-        anteriores = entrada.get('periodos_anteriores')
-        b2b = entrada.get('b2b')
-        itens = [v for v in (vendas, anteriores, b2b) if v is not None]
-        soma = entrada.get('total') or (sum(itens) if itens else None)
-        partes += [f'*R$ {brl(soma)}*' if soma is not None else '*R$ [PREENCHER]*', '']
-        if vendas is not None:
-            partes.append(f'· R$ {brl(vendas)} são referentes às vendas do dia '
-                          f'(Crédito, Débito e Pix);')
-        if anteriores is not None:
-            partes.append(f'· R$ {brl(anteriores)} de recebimento de períodos '
-                          f'anteriores (Voucher D+30);')
-        if b2b is not None:
-            partes.append(f'· R$ {brl(b2b)} referente a iKI Produtos Alimentícios – B2B.')
-    else:
-        partes += ['*R$ [PREENCHER]*', '',
-                   '· R$ [PREENCHER] são referentes às vendas do dia (Crédito, Débito e Pix);',
-                   '· R$ [PREENCHER] de recebimento de períodos anteriores (Voucher D+30);',
-                   '· R$ [PREENCHER] referente a iKI Produtos Alimentícios – B2B.']
+    partes.append(f'· R$ {brl(entrada["vendas"])} são referentes às vendas '
+                  f'{referencia} (Crédito, Débito e Pix);')
 
+    if entrada['voucher'] is not None:
+        partes.append(f'· R$ {brl(entrada["voucher"])} de recebimento de períodos '
+                      f'anteriores (Voucher D+30);')
+
+    if entrada['a_prazo'] is not None:
+        quantos = len(entrada['titulos_a_prazo'])
+        partes.append(f'· R$ {brl(entrada["a_prazo"])} de vendas a prazo com '
+                      f'vencimento em {dia_previsto[:5]} ({quantos} títulos);')
+
+    if entrada['b2b'] is not None:
+        partes.append(f'· R$ {brl(entrada["b2b"])} referente a iKI Produtos '
+                      f'Alimentícios – B2B.')
+
+    partes[-1] = partes[-1].rstrip(';') + '.'  # a ultima linha fecha com ponto
     return '\n'.join(partes) + '\n'
 
 
@@ -248,7 +320,14 @@ def main():
     parser.add_argument('pdf', help='PDF de vendas por forma de pagamento')
     parser.add_argument('--dia', help='usar so este dia (dd/mm/aaaa); padrao: todos somados')
     parser.add_argument('--saida', default='.', help='pasta de saida (padrao: atual)')
-    parser.add_argument('--entrada', help='JSON com vendas_dia, periodos_anteriores e b2b')
+    parser.add_argument('--mes-anterior', dest='mes_anterior',
+                        help='PDF do MESMO periodo do mes anterior, para o voucher D+30')
+    parser.add_argument('--b2b', type=float, help='valor do B2B da iKI, quando houver base')
+    parser.add_argument('--a-prazo', dest='a_prazo', default=A_PRAZO_PADRAO,
+                        help='CSV de vendas a prazo (padrao: vendas_a_prazo.csv do projeto)')
+    parser.add_argument('--dia-previsto', dest='dia_previsto',
+                        help='data da entrada prevista (dd/mm/aaaa); padrao: dia seguinte')
+    parser.add_argument('--entrada', help='JSON para forcar vendas, voucher, a_prazo ou b2b')
     args = parser.parse_args()
 
     dias, cnpj = ler_pdf(args.pdf)
@@ -277,10 +356,32 @@ def main():
         with open(os.path.join(args.saida, 'vendas_card.html'), 'w') as arquivo:
             arquivo.write(html)
 
-    entrada = json.load(open(args.entrada)) if args.entrada else None
+    agrupado_anterior = None
+    if args.mes_anterior:
+        dias_ant, _ = ler_pdf(args.mes_anterior)
+        if not dias_ant:
+            raise SystemExit('ERRO: nenhum dia no PDF do mes anterior.')
+        agrupado_anterior, _ = agrupar(dias_ant, 'PDF do mes anterior')
+        dias_ant_usados = list(dias_ant)
+        if len(dias_ant_usados) != len(dias_usados):
+            print(f'AVISO: o periodo atual tem {len(dias_usados)} dia(s) e o do mes '
+                  f'anterior {len(dias_ant_usados)}. O voucher D+30 fica desproporcional.',
+                  file=sys.stderr)
+
+    if args.dia_previsto:
+        dia_previsto = args.dia_previsto
+    else:  # dia seguinte ao ultimo do relatorio, respeitando virada de mes
+        ultimo = datetime.datetime.strptime(dias_usados[-1], '%d/%m/%Y').date()
+        dia_previsto = (ultimo + datetime.timedelta(days=1)).strftime('%d/%m/%Y')
+
+    titulos = ler_a_prazo(args.a_prazo)
+    override = json.load(open(args.entrada)) if args.entrada else None
+    entrada = calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
+                               args.b2b, override)
+
     txt = os.path.join(args.saida, 'texto_whatsapp.txt')
     with open(txt, 'w') as arquivo:
-        arquivo.write(montar_texto(dias_usados, total, entrada))
+        arquivo.write(montar_texto(dias_usados, total, entrada, dia_previsto))
 
     csv = os.path.join(args.saida, 'formas_agrupadas.csv')
     with open(csv, 'w') as arquivo:
@@ -296,7 +397,35 @@ def main():
     print(f'Dias no PDF: {", ".join(dias_usados)}')
     for dia, formas in dias.items():
         print(f'  {dia}: R$ {brl(sum(formas.values()))}')
-    print(f'\n{len(linhas)} linhas apos o agrupamento | TOTAL R$ {brl(total)}')
+    print(f'\n{len(linhas)} linhas apos o agrupamento | VENDA BRUTA R$ {brl(total)}')
+
+    print(f'\nENTRADA PREVISTA PARA {dia_previsto}')
+    for forma in CARTAO_E_PIX:
+        print(f'  {forma:<28} R$ {brl(agrupado.get(forma, 0.0)):>13}')
+    print(f'  {"= cartao + pix":<28} R$ {brl(entrada["vendas"]):>13}')
+
+    if agrupado_anterior is None:
+        print('  voucher D+30                 FALTA --mes-anterior')
+    else:
+        print(f'  voucher D+30 ({dias_ant_usados[0]} a {dias_ant_usados[-1]})')
+        for forma in FORMAS_VOUCHER:
+            if forma in agrupado_anterior:
+                print(f'    {forma:<26} R$ {brl(agrupado_anterior[forma]):>13}')
+        print(f'  {"= voucher D+30":<28} R$ {brl(entrada["voucher"]):>13}')
+
+    if entrada['a_prazo'] is None:
+        proximos = sorted({t['vencimento'] for t in titulos})
+        print(f'  vendas a prazo               nenhum titulo vence em {dia_previsto}')
+        if proximos:
+            print(f'    proximos vencimentos: {", ".join(proximos)}')
+    else:
+        print(f'  {"vendas a prazo":<28} R$ {brl(entrada["a_prazo"]):>13} '
+              f'({len(entrada["titulos_a_prazo"])} titulos)')
+
+    print(f'  {"B2B iKI":<28} '
+          f'{"SEM BASE" if entrada["b2b"] is None else "R$ " + brl(entrada["b2b"])}')
+    print(f'  {"TOTAL PREVISTO":<28} R$ {brl(entrada["total"]):>13}')
+
     print(f'\nGerado:\n  {png}\n  {txt}\n  {csv}')
 
 

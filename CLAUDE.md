@@ -7,8 +7,11 @@ pagamento, gerar o quadrinho e o texto para ela mandar no WhatsApp.
 ## O que fazer quando o PDF chegar
 
 ```bash
-python3 gerar_relatorio.py <caminho-do-pdf> --saida saida
+python3 gerar_relatorio.py <pdf-do-periodo> --mes-anterior <pdf-de-um-mes-atras> --saida saida
 ```
+
+Ela manda **dois** PDFs: o do período atual e o do **mesmo intervalo do mês
+anterior** (ex.: 04-07/09 + 04-07/08). O segundo serve só para o voucher D+30.
 
 Isso entrega os três arquivos em `saida/`:
 
@@ -25,8 +28,14 @@ Flags úteis:
 
 - `--dia 04/09/2026` — usa só aquele dia. **Sem a flag, todos os dias do PDF
   são somados num bloco único** (foi o que ela pediu: "em um dia só").
-- `--entrada entrada.json` — preenche a entrada prevista e soma o total:
-  `{"vendas_dia": 101481.14, "periodos_anteriores": 5789.23, "b2b": 1177.80}`
+- `--mes-anterior <pdf>` — PDF do mesmo intervalo do mês anterior, de onde sai
+  o voucher D+30. Sem ele, a parcela de voucher não entra.
+- `--dia-previsto dd/mm/aaaa` — força a data da entrada prevista (o padrão é o
+  dia seguinte ao último dia do relatório, já tratando virada de mês).
+- `--b2b 1177.80` — valor do B2B da iKI, quando a base existir.
+- `--a-prazo outro.csv` — outra tabela de recebíveis (padrão: `vendas_a_prazo.csv`).
+- `--entrada forcar.json` — sobrescreve na mão qualquer parcela:
+  `{"vendas": 0, "voucher": 0, "a_prazo": 0, "b2b": 0}`
 
 ## Regras que ela já definiu (não perguntar de novo)
 
@@ -48,18 +57,51 @@ Flags úteis:
 As regras 2 e 3 vivem no dicionário `GRUPOS` no topo de `gerar_relatorio.py`.
 Mudança de agrupamento se faz lá, não na mão na resposta.
 
-## Entrada prevista
+## Entrada prevista — como cada parcela é calculada
 
-O script **não calcula** a entrada prevista — ela não sai deste PDF. Precisa dos
-dados de liquidação (crédito D+1, débito, Pix, voucher D+30, B2B da iKI). Sem
-`--entrada`, o texto sai com `[PREENCHER]` nos quatro lugares. Se a Hylary
-passar os três números, usar `--entrada` para o script somar o total.
+| Parcela | De onde sai |
+|---|---|
+| **Cartão + Pix** | `TEF - CREDITO` + `TEF - DEBITO` + `PIX MAQUININHA` do período atual, **já agrupados** (ou seja, com CARTAO CREDITO e CARTAO DEBITO dentro). Soma da venda **bruta**, como ela pediu. |
+| **Voucher D+30** | soma de `VOUCHER` + `TEF - VOUCHER` + `TEF - TICKET` do PDF de `--mes-anterior`. Voucher liquida em 30 dias, então o previsto de hoje é a venda de voucher de um mês atrás. |
+| **Vendas a prazo** | `vendas_a_prazo.csv`, só os títulos cujo `VENCIMENTO` é **exatamente** a data prevista. Fora dessa data a parcela não entra. |
+| **B2B iKI** | ainda **sem base**. Entra só quando vier `--b2b`. |
+
+`PAGAMENTO ONLINE` fica **fora** da entrada prevista de propósito — é
+app/marketplace, com repasse próprio. Isso confere com o modelo que ela usa: no
+print de 27/08 o previsto (R$ 101.481,14) bate com crédito + débito + Pix
+(R$ 102.999,18) e não com nada que inclua o pagamento online.
+
+Aquele print de 27/08 saiu **1,47% abaixo** da soma bruta, o que tem cara de
+líquido de MDR. O script entrega o **bruto**, que foi a instrução dela. Se
+algum dia ela quiser o líquido, é aplicar a régua de taxas — aí é a skill
+`ragga-conciliacao`.
+
+O texto do WhatsApp só mostra as parcelas que têm número; o que está faltando
+sai como aviso no console, para não mandar `[PREENCHER]` para a diretoria.
+**Sempre avisar no chat o que ficou de fora.**
+
+## vendas_a_prazo.csv
+
+Tabela de recebíveis B2B a prazo (BGs, Casaria etc.) que ela manda de vez em
+quando. Formato: `RAZAO SOCIAL;CNPJ;VALOR;VENCIMENTO;ORIGEM DO CONSUMO`, com
+valor em padrão BR e vencimento `dd/mm/aaaa`.
+
+Estado atual: 22 títulos, todos vencendo **14/09/2026**, somando
+**R$ 38.482,02** (confere com o total da planilha dela). Quando ela mandar
+títulos novos, acrescentar linhas no arquivo e commitar.
+
+Cuidado para **não contar em dobro**: a venda a prazo já entrou na venda bruta
+no dia da venda; o que entra aqui é o **caixa** no dia do vencimento. São
+coisas diferentes, e é por isso que `VENDA A PRAZO` não está em `CARTAO_E_PIX`.
 
 ## Conferências que o script já faz
 
 - A soma antes e depois do agrupamento tem de ser idêntica (erro se divergir).
 - Avisa se alguma forma de `GRUPOS` não apareceu no PDF do dia.
 - Imprime o total de cada dia para bater com o rodapé do PDF.
+- Avisa quando o período do mês anterior tem número de dias diferente do atual
+  (aí o voucher D+30 sai desproporcional).
+- Mostra os próximos vencimentos a prazo quando nenhum cai na data prevista.
 
 Se o PDF vier sem nenhum dia reconhecido, o layout do Cloud Commerce mudou —
 conferir `ROW_RE` e `DAY_RE`.

@@ -6,30 +6,43 @@ partir do PDF `Vendas por forma de pagamento - por dia` do Cloud Commerce.
 ## Uso
 
 ```bash
-# todos os dias do PDF somados num bloco unico
-python3 gerar_relatorio.py relatorio.pdf --saida saida
+# uso normal: PDF do periodo + PDF do mesmo intervalo do mes anterior
+python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf --saida saida
 
 # apenas um dia
-python3 gerar_relatorio.py relatorio.pdf --dia 04/09/2026 --saida saida
+python3 gerar_relatorio.py setembro.pdf --dia 04/09/2026 --saida saida
 
-# com a entrada prevista preenchida
-python3 gerar_relatorio.py relatorio.pdf --entrada entrada.json --saida saida
+# forcando a data da entrada prevista e informando o B2B
+python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf \
+    --dia-previsto 14/09/2026 --b2b 1177.80 --saida saida
 ```
+
+O `--mes-anterior` alimenta a parcela de voucher (liquida em D+30). A data
+prevista e, por padrao, o dia seguinte ao ultimo dia do relatorio.
 
 Saidas em `saida/`: `vendas_card.png`, `texto_whatsapp.txt` e
 `formas_agrupadas.csv`.
 
-## entrada.json
+## Entrada prevista
 
-```json
-{
-  "vendas_dia": 101481.14,
-  "periodos_anteriores": 5789.23,
-  "b2b": 1177.80
-}
-```
+Quatro parcelas, somadas no total:
 
-O total e a soma dos tres. Passe `"total"` para forcar outro valor.
+| Parcela | Origem |
+|---|---|
+| Cartao + Pix | credito + debito + pix do periodo atual (venda bruta) |
+| Voucher D+30 | voucher do PDF de `--mes-anterior` |
+| Vendas a prazo | titulos de `vendas_a_prazo.csv` que vencem na data prevista |
+| B2B iKI | so com `--b2b` (sem base ainda) |
+
+`PAGAMENTO ONLINE` fica fora de proposito: e app/marketplace, com repasse
+proprio.
+
+## vendas_a_prazo.csv
+
+Recebiveis B2B a prazo, no formato
+`RAZAO SOCIAL;CNPJ;VALOR;VENCIMENTO;ORIGEM DO CONSUMO`. Cada titulo entra na
+entrada prevista apenas no dia do seu vencimento. Para forcar outra data de
+apuracao, use `--dia-previsto`.
 
 ## Requisitos
 
