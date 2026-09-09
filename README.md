@@ -33,9 +33,9 @@ Quatro parcelas, somadas no total:
 
 | Parcela | Origem |
 |---|---|
-| Cartao + Pix | credito + debito + pix do periodo atual (venda bruta) |
+| Cartao + Pix | credito + debito + pix do periodo atual, liquidos de taxa |
 | Voucher D+30 | voucher do PDF de `--mes-anterior` |
-| Repasse do iFood | `PAGAMENTO ONLINE` da semana seg-dom anterior, dos PDFs de `--ifood`, so nas quartas |
+| Repasse do iFood | `PAGAMENTO ONLINE` da semana seg-dom anterior, dos PDFs de `--ifood`, liquido de 12,19%, so nas quartas |
 | Vendas a prazo | titulos de `vendas_a_prazo.csv` que vencem na data prevista |
 | B2B iKI | so com `--b2b` (sem base ainda) |
 
@@ -51,6 +51,21 @@ python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf \
 A flag `--ifood` pode repetir, porque a janela costuma cruzar a virada do mes.
 O script calcula a janela a partir da data prevista, ignora dias de fora e
 avisa quais dos sete dias faltaram.
+
+## Taxas
+
+A entrada prevista sai **liquida**, como estimativa. As taxas estao em `TAXAS`
+e `TAXA_IFOOD`, no topo de `gerar_relatorio.py`:
+
+| Forma | Taxa |
+|---|---:|
+| Credito | 2,63% |
+| Debito | 0,99% |
+| Pix | 0% |
+| iFood | 12,19% (8% comissao + 2,60% transacao + 1,59% antecipacao, somadas) |
+
+Voucher, venda a prazo e B2B saem brutos: ainda nao ha taxa definida para
+essas. Use `--bruto` para desligar as taxas e comparar.
 
 ## vendas_a_prazo.csv
 

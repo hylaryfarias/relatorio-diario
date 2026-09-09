@@ -69,9 +69,9 @@ Mudança de agrupamento se faz lá, não na mão na resposta.
 
 | Parcela | De onde sai |
 |---|---|
-| **Cartão + Pix** | `TEF - CREDITO` + `TEF - DEBITO` + `PIX MAQUININHA` do período atual, **já agrupados** (ou seja, com CARTAO CREDITO e CARTAO DEBITO dentro). Soma da venda **bruta**, como ela pediu. |
+| **Cartão + Pix** | `TEF - CREDITO` + `TEF - DEBITO` + `PIX MAQUININHA` do período atual, **já agrupados** (ou seja, com CARTAO CREDITO e CARTAO DEBITO dentro), **líquidos de taxa**. |
 | **Voucher D+30** | soma de `VOUCHER` + `TEF - VOUCHER` + `TEF - TICKET` do PDF de `--mes-anterior`. Voucher liquida em 30 dias, então o previsto de hoje é a venda de voucher de um mês atrás. |
-| **Repasse do iFood** | `PAGAMENTO ONLINE` da semana **segunda a domingo anterior**, dos PDFs de `--ifood`. Só entra **quando a data prevista é quarta-feira** — é quando o iFood repassa. |
+| **Repasse do iFood** | `PAGAMENTO ONLINE` da semana **segunda a domingo anterior**, dos PDFs de `--ifood`, **líquido de 12,19%**. Só entra **quando a data prevista é quarta-feira** — é quando o iFood repassa. |
 | **Vendas a prazo** | `vendas_a_prazo.csv`, só os títulos cujo `VENCIMENTO` é **exatamente** a data prevista. Fora dessa data a parcela não entra. |
 | **B2B iKI** | ainda **sem base**. Entra só quando vier `--b2b`. |
 
@@ -101,10 +101,34 @@ sai em mais de um relatório. O script:
 - avisa quando a data prevista é quarta e o `--ifood` não veio;
 - ignora `--ifood` quando a data prevista não é quarta.
 
-Aquele print de 27/08 saiu **1,47% abaixo** da soma bruta, o que tem cara de
-líquido de MDR. O script entrega o **bruto**, que foi a instrução dela. Se
-algum dia ela quiser o líquido, é aplicar a régua de taxas — aí é a skill
-`ragga-conciliacao`.
+### As taxas (entrada prevista LÍQUIDA)
+
+A entrada prevista sai **líquida de taxa**, como estimativa. As taxas vivem em
+`TAXAS` e `TAXA_IFOOD` no topo de `gerar_relatorio.py` — mudança de taxa se faz
+lá:
+
+| Forma | Taxa |
+|---|---:|
+| Crédito (`TEF - CREDITO`) | 2,63% |
+| Débito (`TEF - DEBITO`) | 0,99% |
+| Pix maquininha | 0% |
+| iFood (`PAGAMENTO ONLINE`) | **12,19%** = 8% comissão + 2,60% transação + 1,59% antecipação |
+
+Regras de uso:
+
+- **Não descrever as taxas no texto do WhatsApp.** Ela pediu explicitamente:
+  o texto mostra só o valor líquido. A abertura bruto → taxa → líquido sai no
+  console, e vale reportar no chat.
+- São **estimativas**, não a taxa real de cada transação. A taxa real sai do
+  EDI — isso é a skill `ragga-conciliacao`.
+- As três taxas do iFood são **somadas**, não compostas (8 + 2,60 + 1,59).
+- **Voucher, venda a prazo e B2B saem brutos** — ela ainda não passou taxa
+  para essas. Voucher de vale (Alelo, Pluxee, Ticket) tem MDR de verdade, então
+  esse número está otimista. **Vale perguntar a taxa do voucher.**
+- `--bruto` desliga tudo e devolve a entrada prevista no bruto, para comparar.
+
+Confere com o modelo dela: aquele print de 27/08 saiu 1,47% abaixo da soma
+bruta, que era justamente o desconto de taxa.
 
 O texto do WhatsApp só mostra as parcelas que têm número; o que está faltando
 sai como aviso no console, para não mandar `[PREENCHER]` para a diretoria.

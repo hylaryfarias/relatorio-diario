@@ -49,6 +49,23 @@ CARTAO_E_PIX = ['TEF - CREDITO', 'TEF - DEBITO', 'PIX MAQUININHA']
 IFOOD_FORMA = 'PAGAMENTO ONLINE'
 QUARTA = 2  # datetime.date.weekday(): segunda=0
 
+# ---------------------------------------------------------------------------
+# Taxas para estimar o LIQUIDO da entrada prevista. Sao estimativas, nao a
+# taxa real de cada transacao -- a taxa real sai do EDI (skill ragga-conciliacao).
+# Aplicadas sobre o bruto de cada forma. Para mudar uma taxa, e aqui.
+# ---------------------------------------------------------------------------
+TAXAS = {
+    'TEF - CREDITO': 0.0263,   # 2,63%
+    'TEF - DEBITO': 0.0099,    # 0,99%
+    'PIX MAQUININHA': 0.0000,  # sem taxa
+}
+
+# iFood: comissao + transacao + antecipacao, somadas (12,19%).
+TAXA_IFOOD = 0.0800 + 0.0260 + 0.0159
+
+# Voucher, venda a prazo e B2B entram BRUTOS: ela ainda nao passou taxa para
+# esses. Quando passar, e so acrescentar aqui e em calcular_entrada.
+
 # Voucher: liquida em D+30, entao o previsto de hoje sai das vendas de voucher
 # do mesmo periodo do mes anterior (--mes-anterior).
 FORMAS_VOUCHER = ['VOUCHER', 'TEF - VOUCHER', 'TEF - TICKET']
@@ -288,21 +305,36 @@ PARCELAS = ('vendas', 'voucher', 'ifood', 'a_prazo', 'b2b')
 
 
 def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
-                     ifood=None, b2b=None, override=None):
+                     ifood=None, b2b=None, override=None, liquido=True):
     """Monta as parcelas da entrada prevista.
 
     vendas   -> credito + debito + pix do periodo atual (venda bruta)
     voucher  -> voucher do mesmo periodo do mes anterior (D+30)
     ifood    -> PAGAMENTO ONLINE da semana seg-dom anterior, so nas quartas
+
+    Com liquido=True (padrao) as parcelas de cartao e de iFood saem liquidas
+    das taxas de TAXAS/TAXA_IFOOD. Voucher, a prazo e B2B saem brutos.
     a_prazo  -> titulos a prazo que vencem exatamente em dia_previsto
     b2b      -> iKI Produtos Alimenticios; None enquanto nao houver base
     """
     vencendo = [t for t in titulos if t['vencimento'] == dia_previsto]
+
+    # detalhe por forma, para poder auditar bruto -> taxa -> liquido
+    detalhe = []
+    for forma in CARTAO_E_PIX:
+        bruto = agrupado.get(forma, 0.0)
+        taxa = TAXAS.get(forma, 0.0) if liquido else 0.0
+        detalhe.append((forma, bruto, taxa, bruto * (1 - taxa)))
+
+    taxa_ifood = TAXA_IFOOD if liquido else 0.0
     entrada = {
-        'vendas': sum(agrupado.get(f, 0.0) for f in CARTAO_E_PIX),
+        'vendas': sum(item[3] for item in detalhe),
+        'detalhe_vendas': detalhe,
+        'ifood_bruto': ifood,
+        'taxa_ifood': taxa_ifood,
         'voucher': (sum(agrupado_anterior.get(f, 0.0) for f in FORMAS_VOUCHER)
                     if agrupado_anterior is not None else None),
-        'ifood': ifood,
+        'ifood': None if ifood is None else ifood * (1 - taxa_ifood),
         'a_prazo': sum(t['valor'] for t in vencendo) if vencendo else None,
         'b2b': b2b,
         'titulos_a_prazo': vencendo,
@@ -373,6 +405,8 @@ def main():
                         help='CSV de vendas a prazo (padrao: vendas_a_prazo.csv do projeto)')
     parser.add_argument('--dia-previsto', dest='dia_previsto',
                         help='data da entrada prevista (dd/mm/aaaa); padrao: dia seguinte')
+    parser.add_argument('--bruto', action='store_true',
+                        help='nao aplicar taxas: entrada prevista no bruto')
     parser.add_argument('--entrada', help='JSON para forcar vendas, voucher, a_prazo ou b2b')
     args = parser.parse_args()
 
@@ -440,7 +474,7 @@ def main():
     titulos = ler_a_prazo(args.a_prazo)
     override = json.load(open(args.entrada)) if args.entrada else None
     entrada = calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
-                               ifood, args.b2b, override)
+                               ifood, args.b2b, override, liquido=not args.bruto)
     entrada['janela_ifood'] = janela
 
     txt = os.path.join(args.saida, 'texto_whatsapp.txt')
@@ -463,10 +497,12 @@ def main():
         print(f'  {dia}: R$ {brl(sum(formas.values()))}')
     print(f'\n{len(linhas)} linhas apos o agrupamento | VENDA BRUTA R$ {brl(total)}')
 
-    print(f'\nENTRADA PREVISTA PARA {dia_previsto}')
-    for forma in CARTAO_E_PIX:
-        print(f'  {forma:<28} R$ {brl(agrupado.get(forma, 0.0)):>13}')
-    print(f'  {"= cartao + pix":<28} R$ {brl(entrada["vendas"]):>13}')
+    rotulo = 'BRUTA' if args.bruto else 'LIQUIDA (estimativa)'
+    print(f'\nENTRADA PREVISTA PARA {dia_previsto} -- {rotulo}')
+    print(f'  {"":28} {"bruto":>14} {"taxa":>7} {"liquido":>14}')
+    for forma, bruto, taxa, liq in entrada['detalhe_vendas']:
+        print(f'  {forma:<28} {brl(bruto):>14} {brl(taxa * 100)+"%":>7} {brl(liq):>14}')
+    print(f'  {"= cartao + pix":<28} {"":>14} {"":>7} {brl(entrada["vendas"]):>14}')
 
     if agrupado_anterior is None:
         print('  voucher D+30                 FALTA --mes-anterior')
@@ -475,15 +511,17 @@ def main():
         for forma in FORMAS_VOUCHER:
             if forma in agrupado_anterior:
                 print(f'    {forma:<26} R$ {brl(agrupado_anterior[forma]):>13}')
-        print(f'  {"= voucher D+30":<28} R$ {brl(entrada["voucher"]):>13}')
+        print(f'  {"= voucher D+30 (bruto)":<28} {"":>14} {"":>7} '
+              f'{brl(entrada["voucher"]):>14}')
 
     if entrada['ifood'] is None:
         print('  repasse iFood                '
               + ('nao e quarta-feira' if janela is None else 'FALTA --ifood'))
     else:
-        print(f'  {"repasse iFood":<28} R$ {brl(entrada["ifood"]):>13} '
-              f'({janela[0]:%d/%m} a {janela[1]:%d/%m}'
-              + (f', faltam {len(ifood_faltando)} dia(s))' if ifood_faltando else ')'))
+        print(f'  {"repasse iFood":<28} {brl(entrada["ifood_bruto"]):>14} '
+              f'{brl(entrada["taxa_ifood"] * 100)+"%":>7} {brl(entrada["ifood"]):>14}')
+        print(f'    {janela[0]:%d/%m} a {janela[1]:%d/%m}'
+              + (f', faltam {len(ifood_faltando)} dia(s)' if ifood_faltando else ''))
 
     if entrada['a_prazo'] is None:
         proximos = sorted({t['vencimento'] for t in titulos})
@@ -496,7 +534,7 @@ def main():
 
     print(f'  {"B2B iKI":<28} '
           f'{"SEM BASE" if entrada["b2b"] is None else "R$ " + brl(entrada["b2b"])}')
-    print(f'  {"TOTAL PREVISTO":<28} R$ {brl(entrada["total"]):>13}')
+    print(f'  {"TOTAL PREVISTO":<28} {"":>14} {"":>7} {brl(entrada["total"]):>14}')
 
     print(f'\nGerado:\n  {png}\n  {txt}\n  {csv}')
 
