@@ -60,8 +60,22 @@ TAXAS = {
     'PIX MAQUININHA': 0.0000,  # sem taxa
 }
 
-# iFood: comissao + transacao + antecipacao, somadas (12,19%).
-TAXA_IFOOD = 0.0800 + 0.0260 + 0.0159
+# iFood em DOIS ESTAGIOS, e nao numa soma simples:
+#   1) comissao (8%) + transacao (2,60%) incidem sobre o BRUTO;
+#   2) antecipacao (1,59%) incide sobre o LIQUIDO que sobrou do estagio 1.
+# Taxa efetiva resultante: 12,0215%.
+IFOOD_SOBRE_BRUTO = 0.0800 + 0.0260
+IFOOD_ANTECIPACAO = 0.0159
+
+
+def liquido_ifood(bruto):
+    """Aplica os dois estagios da taxa do iFood."""
+    return bruto * (1 - IFOOD_SOBRE_BRUTO) * (1 - IFOOD_ANTECIPACAO)
+
+
+def taxa_efetiva_ifood():
+    """Taxa efetiva equivalente dos dois estagios, para exibir."""
+    return 1 - (1 - IFOOD_SOBRE_BRUTO) * (1 - IFOOD_ANTECIPACAO)
 
 # Voucher, venda a prazo e B2B entram BRUTOS: ela ainda nao passou taxa para
 # esses. Quando passar, e so acrescentar aqui e em calcular_entrada.
@@ -313,7 +327,8 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
     ifood    -> PAGAMENTO ONLINE da semana seg-dom anterior, so nas quartas
 
     Com liquido=True (padrao) as parcelas de cartao e de iFood saem liquidas
-    das taxas de TAXAS/TAXA_IFOOD. Voucher, a prazo e B2B saem brutos.
+    das taxas de TAXAS e das duas etapas do iFood. Voucher, a prazo e B2B
+    saem brutos.
     a_prazo  -> titulos a prazo que vencem exatamente em dia_previsto
     b2b      -> iKI Produtos Alimenticios; None enquanto nao houver base
     """
@@ -326,7 +341,7 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
         taxa = TAXAS.get(forma, 0.0) if liquido else 0.0
         detalhe.append((forma, bruto, taxa, bruto * (1 - taxa)))
 
-    taxa_ifood = TAXA_IFOOD if liquido else 0.0
+    taxa_ifood = taxa_efetiva_ifood() if liquido else 0.0
     entrada = {
         'vendas': sum(item[3] for item in detalhe),
         'detalhe_vendas': detalhe,
@@ -334,7 +349,8 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
         'taxa_ifood': taxa_ifood,
         'voucher': (sum(agrupado_anterior.get(f, 0.0) for f in FORMAS_VOUCHER)
                     if agrupado_anterior is not None else None),
-        'ifood': None if ifood is None else ifood * (1 - taxa_ifood),
+        'ifood': None if ifood is None else (liquido_ifood(ifood)
+                                             if liquido else ifood),
         'a_prazo': sum(t['valor'] for t in vencendo) if vencendo else None,
         'b2b': b2b,
         'titulos_a_prazo': vencendo,

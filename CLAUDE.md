@@ -71,7 +71,7 @@ Mudança de agrupamento se faz lá, não na mão na resposta.
 |---|---|
 | **Cartão + Pix** | `TEF - CREDITO` + `TEF - DEBITO` + `PIX MAQUININHA` do período atual, **já agrupados** (ou seja, com CARTAO CREDITO e CARTAO DEBITO dentro), **líquidos de taxa**. |
 | **Voucher D+30** | soma de `VOUCHER` + `TEF - VOUCHER` + `TEF - TICKET` do PDF de `--mes-anterior`. Voucher liquida em 30 dias, então o previsto de hoje é a venda de voucher de um mês atrás. |
-| **Repasse do iFood** | `PAGAMENTO ONLINE` da semana **segunda a domingo anterior**, dos PDFs de `--ifood`, **líquido de 12,19%**. Só entra **quando a data prevista é quarta-feira** — é quando o iFood repassa. |
+| **Repasse do iFood** | `PAGAMENTO ONLINE` da semana **segunda a domingo anterior**, dos PDFs de `--ifood`, **líquido (taxa efetiva 12,02%)**. Só entra **quando a data prevista é quarta-feira** — é quando o iFood repassa. |
 | **Vendas a prazo** | `vendas_a_prazo.csv`, só os títulos cujo `VENCIMENTO` é **exatamente** a data prevista. Fora dessa data a parcela não entra. |
 | **B2B iKI** | ainda **sem base**. Entra só quando vier `--b2b`. |
 
@@ -112,7 +112,7 @@ lá:
 | Crédito (`TEF - CREDITO`) | 2,63% |
 | Débito (`TEF - DEBITO`) | 0,99% |
 | Pix maquininha | 0% |
-| iFood (`PAGAMENTO ONLINE`) | **12,19%** = 8% comissão + 2,60% transação + 1,59% antecipação |
+| iFood (`PAGAMENTO ONLINE`) | **12,02% efetivos** — ver abaixo |
 
 Regras de uso:
 
@@ -121,7 +121,14 @@ Regras de uso:
   console, e vale reportar no chat.
 - São **estimativas**, não a taxa real de cada transação. A taxa real sai do
   EDI — isso é a skill `ragga-conciliacao`.
-- As três taxas do iFood são **somadas**, não compostas (8 + 2,60 + 1,59).
+- A taxa do iFood tem **dois estágios**, não é uma soma:
+  1. comissão (8%) + transação (2,60%) incidem sobre o **bruto**;
+  2. antecipação (1,59%) incide sobre o **líquido** que sobrou do estágio 1.
+
+  `líquido = bruto × (1 − 0,1060) × (1 − 0,0159)`, o que dá **12,0215%**
+  efetivos. Somar as três daria 12,19% e desconta R$ 949,38 a mais numa
+  semana de R$ 563 mil — por isso a composição importa. Está em
+  `liquido_ifood()`.
 - **Voucher, venda a prazo e B2B saem brutos** — ela ainda não passou taxa
   para essas. Voucher de vale (Alelo, Pluxee, Ticket) tem MDR de verdade, então
   esse número está otimista. **Vale perguntar a taxa do voucher.**

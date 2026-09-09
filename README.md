@@ -35,7 +35,7 @@ Quatro parcelas, somadas no total:
 |---|---|
 | Cartao + Pix | credito + debito + pix do periodo atual, liquidos de taxa |
 | Voucher D+30 | voucher do PDF de `--mes-anterior` |
-| Repasse do iFood | `PAGAMENTO ONLINE` da semana seg-dom anterior, dos PDFs de `--ifood`, liquido de 12,19%, so nas quartas |
+| Repasse do iFood | `PAGAMENTO ONLINE` da semana seg-dom anterior, dos PDFs de `--ifood`, liquido (12,02% efetivos), so nas quartas |
 | Vendas a prazo | titulos de `vendas_a_prazo.csv` que vencem na data prevista |
 | B2B iKI | so com `--b2b` (sem base ainda) |
 
@@ -62,7 +62,11 @@ e `TAXA_IFOOD`, no topo de `gerar_relatorio.py`:
 | Credito | 2,63% |
 | Debito | 0,99% |
 | Pix | 0% |
-| iFood | 12,19% (8% comissao + 2,60% transacao + 1,59% antecipacao, somadas) |
+| iFood | 12,0215% efetivos, em dois estagios |
+
+A taxa do iFood nao e uma soma: comissao (8%) e transacao (2,60%) incidem
+sobre o bruto, e a antecipacao (1,59%) incide sobre o liquido que sobra —
+`bruto x (1 - 0,1060) x (1 - 0,0159)`.
 
 Voucher, venda a prazo e B2B saem brutos: ainda nao ha taxa definida para
 essas. Use `--bruto` para desligar as taxas e comparar.
