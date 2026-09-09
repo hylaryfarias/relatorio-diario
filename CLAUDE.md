@@ -71,7 +71,7 @@ Mudança de agrupamento se faz lá, não na mão na resposta.
 |---|---|
 | **Cartão + Pix** | `TEF - CREDITO` + `TEF - DEBITO` + `PIX MAQUININHA` do período atual, **já agrupados** (ou seja, com CARTAO CREDITO e CARTAO DEBITO dentro), **líquidos de taxa**. |
 | **Voucher D+30** | soma de `VOUCHER` + `TEF - VOUCHER` + `TEF - TICKET` do PDF de `--mes-anterior`. Voucher liquida em 30 dias, então o previsto de hoje é a venda de voucher de um mês atrás. |
-| **Repasse do iFood** | `PAGAMENTO ONLINE` da semana **segunda a domingo anterior**, dos PDFs de `--ifood`, **líquido (taxa efetiva 12,02%)**. Só entra **quando a data prevista é quarta-feira** — é quando o iFood repassa. |
+| **Repasse do iFood** | **valor informado na mão** em `--ifood-valor`, já líquido, por entidade (Grupo Ragga, Dell Iris). Cai na quarta, referente à semana segunda a domingo anterior. |
 | **Vendas a prazo** | `vendas_a_prazo.csv`, só os títulos cujo `VENCIMENTO` é **exatamente** a data prevista. Fora dessa data a parcela não entra. |
 | **B2B iKI** | ainda **sem base**. Entra só quando vier `--b2b`. |
 
@@ -84,22 +84,31 @@ de 27/08 o previsto (R$ 101.481,14) bate com crédito + débito + Pix
 
 O repasse cai na **quarta-feira**, referente à semana fechada de **segunda a
 domingo anterior**. Exemplo conferido: quarta 09/09/2026 → janela 31/08 a
-06/09.
+06/09. O script calcula essa janela sozinho a partir da data prevista.
+
+**O valor NÃO sai do Cloudfy.** O `PAGAMENTO ONLINE` do relatório é a *venda*,
+não o *repasse* — medido em 09/09, a diferença foi de **24,72%**, muito acima
+da taxa. Ela passa o valor na mão:
 
 ```bash
-python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf \
-    --dia-previsto 09/09/2026 --ifood semana1.pdf --ifood semana2.pdf --saida saida
+python3 gerar_relatorio.py 08-09.pdf --mes-anterior 08-08.pdf \
+    --ifood-valor "Grupo Ragga=401827.58" --ifood-valor "Dell Iris=22224.02" \
+    --saida saida
 ```
 
-`--ifood` pode repetir, porque a janela quase sempre cruza a virada do mês e
-sai em mais de um relatório. O script:
+- `--ifood-valor` aceita `[ROTULO=]VALOR`, pode repetir e soma tudo. O rótulo
+  aparece na abertura do console. Aceita `401827.58` e `401.827,58`.
+- **O valor informado assim JÁ É LÍQUIDO — nunca aplicar taxa em cima.**
+  Aplicar os 12,02% de novo tiraria uns R$ 51 mil de um repasse de R$ 424 mil.
+- Chega **por entidade**: Grupo Ragga e Dell Iris são CNPJs diferentes e vêm
+  em valores separados. Passar cada um com seu rótulo.
+- Se a data prevista é quarta e o valor não veio, o script avisa e diz a janela
+  — aí é pedir o valor antes de mandar o texto.
 
-- calcula a janela sozinho a partir da data prevista;
-- **ignora** dias que caiam fora dela (avisa quais);
-- **avisa quais dos 7 dias faltaram** e diz que o repasse está subestimado —
-  nesse caso, pedir os relatórios que faltam antes de mandar o texto;
-- avisa quando a data prevista é quarta e o `--ifood` não veio;
-- ignora `--ifood` quando a data prevista não é quarta.
+`--ifood <pdf>` continua existindo como **estimativa** a partir do Cloudfy (aí
+sim com a taxa de 12,02%), mas `--ifood-valor` tem precedência e o script avisa
+quando os dois vêm juntos. Para o número que vai para a diretoria, usar sempre
+o valor informado.
 
 ### As taxas (entrada prevista LÍQUIDA)
 
@@ -112,7 +121,7 @@ lá:
 | Crédito (`TEF - CREDITO`) | 2,63% |
 | Débito (`TEF - DEBITO`) | 0,99% |
 | Pix maquininha | 0% |
-| iFood (`PAGAMENTO ONLINE`) | **12,02% efetivos** — ver abaixo |
+| iFood (`PAGAMENTO ONLINE`) | **12,02% efetivos** — só na estimativa por `--ifood`; o valor de `--ifood-valor` já vem líquido |
 
 Regras de uso:
 

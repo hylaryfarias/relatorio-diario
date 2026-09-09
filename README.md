@@ -35,7 +35,7 @@ Quatro parcelas, somadas no total:
 |---|---|
 | Cartao + Pix | credito + debito + pix do periodo atual, liquidos de taxa |
 | Voucher D+30 | voucher do PDF de `--mes-anterior` |
-| Repasse do iFood | `PAGAMENTO ONLINE` da semana seg-dom anterior, dos PDFs de `--ifood`, liquido (12,02% efetivos), so nas quartas |
+| Repasse do iFood | valor informado em `--ifood-valor`, ja liquido, por entidade; cai na quarta |
 | Vendas a prazo | titulos de `vendas_a_prazo.csv` que vencem na data prevista |
 | B2B iKI | so com `--b2b` (sem base ainda) |
 
@@ -48,9 +48,21 @@ python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf \
     --dia-previsto 09/09/2026 --ifood semana1.pdf --ifood semana2.pdf
 ```
 
-A flag `--ifood` pode repetir, porque a janela costuma cruzar a virada do mes.
-O script calcula a janela a partir da data prevista, ignora dias de fora e
-avisa quais dos sete dias faltaram.
+**O valor do repasse nao sai do Cloudfy**: o `PAGAMENTO ONLINE` de la e a
+venda, nao o repasse (diferenca medida de 24,72%). Informe na mao:
+
+```bash
+python3 gerar_relatorio.py 08-09.pdf --mes-anterior 08-08.pdf \
+    --ifood-valor "Grupo Ragga=401827.58" --ifood-valor "Dell Iris=22224.02"
+```
+
+`--ifood-valor` aceita `[ROTULO=]VALOR`, pode repetir e soma. **Esse valor ja
+e liquido** — o script nao aplica taxa em cima. O repasse chega por entidade
+(Grupo Ragga, Dell Iris), com CNPJs diferentes.
+
+A flag `--ifood <pdf>` continua servindo como estimativa a partir do Cloudfy,
+com a taxa de 12,02%, mas `--ifood-valor` tem precedencia. O script calcula a
+janela seg-dom a partir da data prevista de qualquer jeito.
 
 ## Taxas
 

@@ -46,6 +46,12 @@ CARTAO_E_PIX = ['TEF - CREDITO', 'TEF - DEBITO', 'PIX MAQUININHA']
 # PAGAMENTO ONLINE e o iFood. O repasse cai na QUARTA, referente a semana
 # fechada de segunda a domingo anterior (quarta 09/09 -> 31/08 a 06/09). Entao
 # so entra na previsao quando o dia previsto e uma quarta-feira.
+# O recebimento do iFood NAO da para tirar do Cloudfy: o PAGAMENTO ONLINE de
+# lá é a venda, não o repasse, e a diferença medida foi de 24,72% (bem mais que
+# a taxa). Então o valor vem NA MAO, em --ifood-valor, e chega por entidade
+# (Grupo Ragga, Dell Iris). Valor informado assim JA E LIQUIDO: nao aplicar
+# taxa de novo. A janela seg-dom e a regra da quarta continuam valendo para
+# dizer a que semana o repasse se refere.
 IFOOD_FORMA = 'PAGAMENTO ONLINE'
 QUARTA = 2  # datetime.date.weekday(): segunda=0
 
@@ -152,6 +158,20 @@ def ler_pdf(caminho):
             valor = to_float(achou_linha.group(2))
             dias[dia_atual][forma] = dias[dia_atual].get(forma, 0.0) + valor
     return dias, cnpj
+
+
+def ler_ifood_manual(entradas):
+    """Le os --ifood-valor no formato "[ROTULO=]VALOR". Valores JA LIQUIDOS."""
+    itens = []
+    for bruto in entradas:
+        rotulo, _, texto = bruto.rpartition('=')
+        texto = texto.strip()
+        try:
+            valor = to_float(texto) if ',' in texto else float(texto)
+        except ValueError:
+            raise SystemExit(f'ERRO: valor invalido em --ifood-valor: {bruto!r}')
+        itens.append((rotulo.strip() or 'repasse', valor))
+    return itens
 
 
 def janela_ifood(dia_previsto):
@@ -319,7 +339,8 @@ PARCELAS = ('vendas', 'voucher', 'ifood', 'a_prazo', 'b2b')
 
 
 def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
-                     ifood=None, b2b=None, override=None, liquido=True):
+                     ifood=None, b2b=None, override=None, liquido=True,
+                     ifood_manual=None):
     """Monta as parcelas da entrada prevista.
 
     vendas   -> credito + debito + pix do periodo atual (venda bruta)
@@ -341,16 +362,22 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
         taxa = TAXAS.get(forma, 0.0) if liquido else 0.0
         detalhe.append((forma, bruto, taxa, bruto * (1 - taxa)))
 
-    taxa_ifood = taxa_efetiva_ifood() if liquido else 0.0
+    # valor informado na mao ja vem liquido: taxa zero, sem bruto de referencia
+    if ifood_manual:
+        taxa_ifood, ifood_bruto = 0.0, None
+        ifood_valor = sum(valor for _, valor in ifood_manual)
+    else:
+        taxa_ifood, ifood_bruto = (taxa_efetiva_ifood() if liquido else 0.0), ifood
+        ifood_valor = None if ifood is None else (liquido_ifood(ifood) if liquido else ifood)
     entrada = {
         'vendas': sum(item[3] for item in detalhe),
         'detalhe_vendas': detalhe,
-        'ifood_bruto': ifood,
+        'ifood_bruto': ifood_bruto,
         'taxa_ifood': taxa_ifood,
+        'ifood_manual': ifood_manual or [],
         'voucher': (sum(agrupado_anterior.get(f, 0.0) for f in FORMAS_VOUCHER)
                     if agrupado_anterior is not None else None),
-        'ifood': None if ifood is None else (liquido_ifood(ifood)
-                                             if liquido else ifood),
+        'ifood': ifood_valor,
         'a_prazo': sum(t['valor'] for t in vencendo) if vencendo else None,
         'b2b': b2b,
         'titulos_a_prazo': vencendo,
@@ -388,9 +415,11 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
                       f'anteriores (Voucher D+30);')
 
     if entrada['ifood'] is not None:
-        inicio, fim = entrada['janela_ifood']
-        partes.append(f'· R$ {brl(entrada["ifood"])} de repasse do iFood, '
-                      f'referente a {inicio:%d/%m} a {fim:%d/%m};')
+        janela = entrada['janela_ifood']
+        referencia = (f', referente a {janela[0]:%d/%m} a {janela[1]:%d/%m}'
+                      if janela else '')
+        partes.append(f'· R$ {brl(entrada["ifood"])} de repasse do iFood'
+                      f'{referencia};')
 
     if entrada['a_prazo'] is not None:
         quantos = len(entrada['titulos_a_prazo'])
@@ -416,6 +445,11 @@ def main():
     parser.add_argument('--ifood', action='append', default=[], metavar='PDF',
                         help='PDF(s) cobrindo a semana seg-dom do repasse do iFood; '
                              'pode repetir a flag. So vale quando a data prevista e quarta')
+    parser.add_argument('--ifood-valor', dest='ifood_valores', action='append',
+                        default=[], metavar='[ROTULO=]VALOR',
+                        help='repasse do iFood JA LIQUIDO, informado na mao; pode repetir '
+                             '(ex.: --ifood-valor "Grupo Ragga=401827.58"). Tem precedencia '
+                             'sobre --ifood')
     parser.add_argument('--b2b', type=float, help='valor do B2B da iKI, quando houver base')
     parser.add_argument('--a-prazo', dest='a_prazo', default=A_PRAZO_PADRAO,
                         help='CSV de vendas a prazo (padrao: vendas_a_prazo.csv do projeto)')
@@ -471,8 +505,14 @@ def main():
         dia_previsto = (ultimo + datetime.timedelta(days=1)).strftime('%d/%m/%Y')
 
     janela = janela_ifood(dia_previsto)
+    ifood_manual = ler_ifood_manual(args.ifood_valores)
     ifood, ifood_faltando = None, []
-    if args.ifood and janela is None:
+    if ifood_manual and args.ifood:
+        print('AVISO: --ifood-valor tem precedencia; os PDFs de --ifood foram ignorados.',
+              file=sys.stderr)
+    elif ifood_manual:
+        pass
+    elif args.ifood and janela is None:
         print(f'AVISO: {dia_previsto} nao e quarta-feira, entao nao ha repasse de '
               f'iFood nesse dia. Os PDFs de --ifood foram ignorados.', file=sys.stderr)
     elif args.ifood:
@@ -484,13 +524,14 @@ def main():
                   f'O repasse esta SUBESTIMADO.', file=sys.stderr)
     elif janela is not None:
         print(f'AVISO: {dia_previsto} e quarta-feira, entao tem repasse de iFood '
-              f'de {janela[0]:%d/%m} a {janela[1]:%d/%m}. Passe os PDFs em --ifood.',
-              file=sys.stderr)
+              f'de {janela[0]:%d/%m} a {janela[1]:%d/%m}. Informe o valor em '
+              f'--ifood-valor (o Cloudfy nao serve para isso).', file=sys.stderr)
 
     titulos = ler_a_prazo(args.a_prazo)
     override = json.load(open(args.entrada)) if args.entrada else None
     entrada = calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
-                               ifood, args.b2b, override, liquido=not args.bruto)
+                               ifood, args.b2b, override, liquido=not args.bruto,
+                               ifood_manual=ifood_manual)
     entrada['janela_ifood'] = janela
 
     txt = os.path.join(args.saida, 'texto_whatsapp.txt')
@@ -533,6 +574,13 @@ def main():
     if entrada['ifood'] is None:
         print('  repasse iFood                '
               + ('nao e quarta-feira' if janela is None else 'FALTA --ifood'))
+    elif entrada['ifood_manual']:
+        print(f'  repasse iFood (na mao, ja liquido)')
+        for rotulo, valor in entrada['ifood_manual']:
+            print(f'    {rotulo:<26} {"":>14} {"":>7} {brl(valor):>14}')
+        print(f'  {"= repasse iFood":<28} {"":>14} {"":>7} {brl(entrada["ifood"]):>14}')
+        if janela is not None:
+            print(f'    referente a {janela[0]:%d/%m} a {janela[1]:%d/%m}')
     else:
         print(f'  {"repasse iFood":<28} {brl(entrada["ifood_bruto"]):>14} '
               f'{brl(entrada["taxa_ifood"] * 100)+"%":>7} {brl(entrada["ifood"]):>14}')
