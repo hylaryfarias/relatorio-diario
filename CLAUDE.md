@@ -102,6 +102,9 @@ python3 gerar_relatorio.py 08-09.pdf --mes-anterior 08-08.pdf \
   Aplicar os 12,02% de novo tiraria uns R$ 51 mil de um repasse de R$ 424 mil.
 - Chega **por entidade**: Grupo Ragga e Dell Iris são CNPJs diferentes e vêm
   em valores separados. Passar cada um com seu rótulo.
+- **A Dell Iris é só iFood.** Ela não tem cartão, voucher nem venda a prazo
+  para entrar no previsto — o relatório do Cloudfy (CNPJ 52.934.334/0001-36)
+  cobre tudo o que não é iFood. Não procurar venda da Dell Iris.
 - Se a data prevista é quarta e o valor não veio, o script avisa e diz a janela
   — aí é pedir o valor antes de mandar o texto.
 
@@ -138,9 +141,12 @@ Regras de uso:
   efetivos. Somar as três daria 12,19% e desconta R$ 949,38 a mais numa
   semana de R$ 563 mil — por isso a composição importa. Está em
   `liquido_ifood()`.
-- **Voucher, venda a prazo e B2B saem brutos** — ela ainda não passou taxa
-  para essas. Voucher de vale (Alelo, Pluxee, Ticket) tem MDR de verdade, então
-  esse número está otimista. **Vale perguntar a taxa do voucher.**
+- **Voucher, venda a prazo e B2B saem brutos.** Isso está **decidido, não é
+  pendência**: ela não tem a taxa do voucher. Vale de benefício (Alelo, Pluxee,
+  Ticket) tem MDR de verdade, então essa parcela é a única otimista do previsto
+  — mas é pequena (R$ 10 mil num previsto de R$ 517 mil em 09/09). **Não
+  perguntar a taxa do voucher de novo**; se ela levantar, é só acrescentar em
+  `TAXAS`. Venda a prazo e B2B são boleto, sem adquirente: brutos mesmo.
 - `--bruto` desliga tudo e devolve a entrada prevista no bruto, para comparar.
 
 Confere com o modelo dela: aquele print de 27/08 saiu 1,47% abaixo da soma

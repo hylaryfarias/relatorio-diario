@@ -58,7 +58,8 @@ python3 gerar_relatorio.py 08-09.pdf --mes-anterior 08-08.pdf \
 
 `--ifood-valor` aceita `[ROTULO=]VALOR`, pode repetir e soma. **Esse valor ja
 e liquido** — o script nao aplica taxa em cima. O repasse chega por entidade
-(Grupo Ragga, Dell Iris), com CNPJs diferentes.
+(Grupo Ragga, Dell Iris), com CNPJs diferentes. A Dell Iris e **so iFood**:
+nao tem cartao nem voucher entrando no previsto.
 
 A flag `--ifood <pdf>` continua servindo como estimativa a partir do Cloudfy,
 com a taxa de 12,02%, mas `--ifood-valor` tem precedencia. O script calcula a
@@ -80,8 +81,9 @@ A taxa do iFood nao e uma soma: comissao (8%) e transacao (2,60%) incidem
 sobre o bruto, e a antecipacao (1,59%) incide sobre o liquido que sobra —
 `bruto x (1 - 0,1060) x (1 - 0,0159)`.
 
-Voucher, venda a prazo e B2B saem brutos: ainda nao ha taxa definida para
-essas. Use `--bruto` para desligar as taxas e comparar.
+Voucher, venda a prazo e B2B saem brutos, por decisao: nao ha taxa de voucher
+levantada, e venda a prazo e B2B sao boleto (sem adquirente no meio). Use
+`--bruto` para desligar todas as taxas e comparar.
 
 ## vendas_a_prazo.csv
 
