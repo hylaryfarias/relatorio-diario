@@ -83,8 +83,11 @@ def taxa_efetiva_ifood():
     """Taxa efetiva equivalente dos dois estagios, para exibir."""
     return 1 - (1 - IFOOD_SOBRE_BRUTO) * (1 - IFOOD_ANTECIPACAO)
 
-# Voucher, venda a prazo e B2B entram BRUTOS: ela ainda nao passou taxa para
-# esses. Quando passar, e so acrescentar aqui e em calcular_entrada.
+# Voucher (Alelo, Pluxee, Ticket, Fepas): 5% FICTICIO, so para ter uma base.
+# Nao e taxa negociada -- trocar quando a real aparecer.
+TAXA_VOUCHER = 0.05
+
+# Venda a prazo e B2B entram BRUTOS: sao boleto, sem adquirente no meio.
 
 # Voucher: liquida em D+30, entao o previsto de hoje sai das vendas de voucher
 # do mesmo periodo do mes anterior (--mes-anterior).
@@ -347,9 +350,8 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
     voucher  -> voucher do mesmo periodo do mes anterior (D+30)
     ifood    -> PAGAMENTO ONLINE da semana seg-dom anterior, so nas quartas
 
-    Com liquido=True (padrao) as parcelas de cartao e de iFood saem liquidas
-    das taxas de TAXAS e das duas etapas do iFood. Voucher, a prazo e B2B
-    saem brutos.
+    Com liquido=True (padrao) cartao, voucher e a estimativa de iFood saem
+    liquidos das taxas. Venda a prazo e B2B saem brutos (boleto).
     a_prazo  -> titulos a prazo que vencem exatamente em dia_previsto
     b2b      -> iKI Produtos Alimenticios; None enquanto nao houver base
     """
@@ -376,7 +378,9 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
         'taxa_ifood': taxa_ifood,
         'ifood_manual': ifood_manual or [],
         'voucher': (sum(agrupado_anterior.get(f, 0.0) for f in FORMAS_VOUCHER)
+                    * (1 - (TAXA_VOUCHER if liquido else 0.0))
                     if agrupado_anterior is not None else None),
+        'taxa_voucher': TAXA_VOUCHER if liquido else 0.0,
         'ifood': ifood_valor,
         'a_prazo': sum(t['valor'] for t in vencendo) if vencendo else None,
         'b2b': b2b,
@@ -565,11 +569,12 @@ def main():
         print('  voucher D+30                 FALTA --mes-anterior')
     else:
         print(f'  voucher D+30 ({dias_ant_usados[0]} a {dias_ant_usados[-1]})')
+        bruto_voucher = sum(agrupado_anterior.get(f, 0.0) for f in FORMAS_VOUCHER)
         for forma in FORMAS_VOUCHER:
             if forma in agrupado_anterior:
-                print(f'    {forma:<26} R$ {brl(agrupado_anterior[forma]):>13}')
-        print(f'  {"= voucher D+30 (bruto)":<28} {"":>14} {"":>7} '
-              f'{brl(entrada["voucher"]):>14}')
+                print(f'    {forma:<26} {brl(agrupado_anterior[forma]):>14}')
+        print(f'  {"= voucher D+30":<28} {brl(bruto_voucher):>14} '
+              f'{brl(entrada["taxa_voucher"] * 100)+"%":>7} {brl(entrada["voucher"]):>14}')
 
     if entrada['ifood'] is None:
         print('  repasse iFood                '

@@ -75,15 +75,17 @@ e `TAXA_IFOOD`, no topo de `gerar_relatorio.py`:
 | Credito | 2,63% |
 | Debito | 0,99% |
 | Pix | 0% |
+| Voucher | 5% (ficticio, so para ter base) |
 | iFood | 12,0215% efetivos, em dois estagios |
 
 A taxa do iFood nao e uma soma: comissao (8%) e transacao (2,60%) incidem
 sobre o bruto, e a antecipacao (1,59%) incide sobre o liquido que sobra —
 `bruto x (1 - 0,1060) x (1 - 0,0159)`.
 
-Voucher, venda a prazo e B2B saem brutos, por decisao: nao ha taxa de voucher
-levantada, e venda a prazo e B2B sao boleto (sem adquirente no meio). Use
-`--bruto` para desligar todas as taxas e comparar.
+A taxa de 5% do voucher e **ficticia**, so para ter uma base -- nao e taxa
+negociada. Trocar em `TAXA_VOUCHER` quando a real aparecer. Venda a prazo e
+B2B saem brutos: sao boleto, sem adquirente no meio. Use `--bruto` para
+desligar todas as taxas e comparar.
 
 ## vendas_a_prazo.csv
 

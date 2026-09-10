@@ -124,6 +124,7 @@ lá:
 | Crédito (`TEF - CREDITO`) | 2,63% |
 | Débito (`TEF - DEBITO`) | 0,99% |
 | Pix maquininha | 0% |
+| Voucher | **5% fictício** — ver abaixo |
 | iFood (`PAGAMENTO ONLINE`) | **12,02% efetivos** — só na estimativa por `--ifood`; o valor de `--ifood-valor` já vem líquido |
 
 Regras de uso:
@@ -141,12 +142,16 @@ Regras de uso:
   efetivos. Somar as três daria 12,19% e desconta R$ 949,38 a mais numa
   semana de R$ 563 mil — por isso a composição importa. Está em
   `liquido_ifood()`.
-- **Voucher, venda a prazo e B2B saem brutos.** Isso está **decidido, não é
-  pendência**: ela não tem a taxa do voucher. Vale de benefício (Alelo, Pluxee,
-  Ticket) tem MDR de verdade, então essa parcela é a única otimista do previsto
-  — mas é pequena (R$ 10 mil num previsto de R$ 517 mil em 09/09). **Não
-  perguntar a taxa do voucher de novo**; se ela levantar, é só acrescentar em
-  `TAXAS`. Venda a prazo e B2B são boleto, sem adquirente: brutos mesmo.
+- **A taxa do voucher (5%) é FICTÍCIA.** Ela não tem a taxa real e pediu os 5%
+  só para ter uma base. Está em `TAXA_VOUCHER`. Consequências:
+  - **não tratar esse número como taxa negociada** em nenhuma análise;
+  - **não perguntar a taxa real a cada envio** — ela sabe que é estimativa;
+  - quando a real aparecer (contrato de Alelo, Pluxee, Ticket, Fepas, ou o
+    EDI), é trocar uma linha.
+
+  Como o voucher é parcela pequena (uns R$ 10 mil num previsto de R$ 517 mil),
+  o erro dessa estimativa não move o total de forma relevante.
+- **Venda a prazo e B2B saem brutos** — são boleto, sem adquirente no meio.
 - `--bruto` desliga tudo e devolve a entrada prevista no bruto, para comparar.
 
 Confere com o modelo dela: aquele print de 27/08 saiu 1,47% abaixo da soma
