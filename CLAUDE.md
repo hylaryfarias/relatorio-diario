@@ -161,6 +161,9 @@ Semana 07–13/09, pedidos liquidados:
 O incentivo promocional da loja é desconto que o Grupo banca, não taxa, mas
 sai do líquido igual — e é a maior das deduções.
 
+> **A antecipação de 1,59% não está no relatório.** O `VALOR LIQUIDO` é
+> anterior a ela. Aplicar sempre no fim, sobre o total da semana.
+
 > **Cuidado: o último dia da semana costuma vir incompleto.** Em 07–13/09,
 > **803 dos 1.603 pedidos de domingo** estavam com taxa e líquido zerados (não
 > liquidados). Os outros seis dias vieram completos. **Sempre conferir quantas
@@ -171,12 +174,22 @@ sai do líquido igual — e é a maior das deduções.
 
 1. Descartar só os `CANCELADO`.
 2. Somar `VALOR LIQUIDO (R$)` dos pedidos liquidados.
-3. Calcular a razão `líquido ÷ itens` desses liquidados.
-4. Aplicar essa razão aos itens das linhas com líquido zerado e somar.
+3. Estimar as linhas com líquido zerado (o último dia costuma vir assim),
+   aplicando aos itens delas a razão líquido ÷ itens dos já liquidados.
+4. **Aplicar 1,59% de antecipação sobre o total.** O relatório de pedidos
+   **não traz a antecipação** — ela incide depois, sobre o líquido, na média.
 
-Feito em 07–13/09: R$ 397.039,13 liquidados + R$ 25.200,67 estimados
-(razão 60,2476%) = **R$ 422.239,80** de previsão. Faturamento da semana
-(`VALOR DOS ITENS`, sem cancelados): R$ 700.841,32.
+Feito em 07–13/09:
+
+| | |
+|---|---:|
+| Liquidados | R$ 397.039,13 |
+| + domingo estimado | R$ 25.960,57 |
+| = líquido do relatório | R$ 422.999,70 |
+| − antecipação 1,59% | −R$ 6.725,70 |
+| **= previsão de recebimento** | **R$ 416.274,00** |
+
+Faturamento da semana (`VALOR DOS ITENS`, sem cancelados): R$ 700.841,32.
 
 No texto isso vai como bloco próprio, via `--ifood-valor` (a previsão já
 líquida) e `--ifood-faturado` (o bruto, só para exibir):
