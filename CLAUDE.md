@@ -115,23 +115,36 @@ Identidade validada em 96,3% das linhas:
 VALOR LIQUIDO = VALOR DOS ITENS − INCENTIVO PROMOCIONAL DA LOJA + TAXAS E COMISSOES
 ```
 
-#### A estrutura real de taxa (medida, não estimada)
+#### A estrutura de taxa — o que o arquivo permite afirmar
 
-Ajuste sobre 3.189 pedidos, erro médio de R$ 0,004:
+> **NÃO tentar decompor `TAXAS E COMISSOES` em comissão / transação /
+> antecipação.** O arquivo traz **um número agregado por pedido** e não abre a
+> composição. Uma tentativa anterior chegou a "10,600% × itens + taxa fixa"
+> com erro de R$ 0,004, mas isso era **circular**: o ajuste foi feito num
+> grupo selecionado por esse mesmo resíduo. Ajustando por loja, o percentual
+> varia de **9,46% a 13,61%** com erro de ~R$ 1 por pedido — ou seja, a
+> fórmula não se sustenta.
 
-```
-TAXAS E COMISSOES = 10,600% × VALOR DOS ITENS + taxa fixa por pedido
-```
+O que **é** medível, e basta para o relatório:
 
-- **10,600%** = comissão 8% + transação 2,60%. Bate exatamente com as taxas
-  que ela passou.
-- **taxa fixa por pedido**: R$ 3,46 / R$ 3,99 / R$ 5,46 / R$ 5,99 conforme a
-  faixa. Média R$ 4,46. **Ela não sabia dessa taxa** — e ela é quase metade do
-  que o iFood cobra (R$ 63.648,41 de R$ 133.503,77 na semana 07–13/09).
-- **A antecipação de 1,59% NÃO está nessa coluna** (a inclinação medida é
-  10,600%, não 12,19%). Se for cobrada depois, incide sobre o líquido.
-- A taxa de entrega paga pelo cliente **não entra** no cálculo: pedidos com os
-  mesmos itens e entregas diferentes têm taxa idêntica.
+| Recorte | Taxa efetiva sobre os itens | Taxa média por pedido |
+|---|---:|---:|
+| ENTREGA (14.035 pedidos) | **20,41%** | R$ 9,41 |
+| PARA RETIRAR (239 pedidos) | **12,10%** | R$ 6,27 |
+
+**A taxa é fortemente regressiva** — quanto menor o pedido, maior a mordida:
+
+| Itens do pedido | Taxa efetiva | Taxa por pedido |
+|---|---:|---:|
+| até R$ 25 | 30,27% | R$ 6,54 |
+| R$ 25 a 40 | 24,31% | R$ 7,87 |
+| R$ 40 a 60 | 19,85% | R$ 9,72 |
+| R$ 60 a 100 | 16,97% | R$ 12,79 |
+| acima de R$ 100 | 14,54% | R$ 19,60 |
+
+A taxa por pedido sobe bem mais devagar que o valor do pedido, o que confirma
+que existe **um componente fixo por pedido** — mas o tamanho exato dele não sai
+deste arquivo.
 
 #### O desconto real é ~40%, não 12%
 
