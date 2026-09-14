@@ -154,6 +154,25 @@ sai do líquido igual — e é a maior das deduções.
 > linhas têm `VALOR LIQUIDO = 0` e em que dia caem**; se houver, estimar o que
 > falta pela razão líquido/itens dos liquidados e avisar no chat.
 
+#### Como montar a prévia a partir do relatório
+
+1. Descartar só os `CANCELADO`.
+2. Somar `VALOR LIQUIDO (R$)` dos pedidos liquidados.
+3. Calcular a razão `líquido ÷ itens` desses liquidados.
+4. Aplicar essa razão aos itens das linhas com líquido zerado e somar.
+
+Feito em 07–13/09: R$ 397.039,13 liquidados + R$ 25.200,67 estimados
+(razão 60,2476%) = **R$ 422.239,80** de previsão. Faturamento da semana
+(`VALOR DOS ITENS`, sem cancelados): R$ 700.841,32.
+
+No texto isso vai como bloco próprio, via `--ifood-valor` (a previsão já
+líquida) e `--ifood-faturado` (o bruto, só para exibir):
+
+```bash
+python3 gerar_relatorio.py 11-13-09.pdf --mes-anterior 11-13-08.pdf \
+    --ifood-valor "Previsao=422239.80" --ifood-faturado 700841.32 --saida saida
+```
+
 #### Cloudfy × relatório de pedidos
 
 `PAGAMENTO ONLINE` do Cloudfy espelha **`VALOR DOS ITENS − INCENTIVO DA LOJA`**
@@ -163,8 +182,16 @@ A virada de dia é às **02h**, não à meia-noite: agrupar os pedidos por
 `DATA E HORA DO PEDIDO − 2h` reduz o erro diário de R$ 3.877 para R$ 2.861.
 
 Semana 07–13/09: Cloudfy R$ 555.505,94 × iFood R$ 579.344,26 → Cloudfy fica
-**4,1% abaixo**. A **Dell'iris está nos dois** (4 lojas no relatório de
-pedidos, 988 pedidos, R$ 32.559,78) — não procurar um relatório separado dela.
+**4,1% abaixo** (R$ 23.838,32), dos quais R$ 2.855,21 são pedidos com
+`CANCELAMENTO PARCIAL`. Sobram ~3,6% sem explicação, que encolhem ao longo da
+semana (−5,9% na segunda, −0,9% no domingo) — tem cara de atraso de
+lançamento, não de perda.
+
+**A Dell'iris está nas duas fontes e não tem relatório próprio.** É uma *dark
+kitchen* dentro das lojas físicas: no iFood ela aparece como 4 lojas próprias
+(988 pedidos, R$ 32.559,78 na semana), e no Cloudfy o faturamento dela sai
+embutido no da loja que a hospeda. Não existe e não adianta pedir um relatório
+de vendas separado dela.
 
 > **Por que a estimativa por taxa dava errado:** aplicar 12,02% sobre o
 > faturado do Cloudfy deu R$ 488.726,02 para 07–13/09, contra um líquido real

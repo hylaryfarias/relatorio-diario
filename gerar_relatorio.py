@@ -462,11 +462,11 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
     # A previa do iFood fica FORA do total: o dinheiro so entra na quarta.
     if entrada.get('ifood_previa') is not None:
         janela = entrada['janela_ifood']
-        partes += ['', f'🛵 *REPASSE DO IFOOD — ENTRA QUARTA '
-                       f'{entrada["data_repasse"]:%d/%m}*', '',
-                   f'*R$ {brl(entrada["ifood_previa"])}*', '',
-                   f'· Faturamento de {janela[0]:%d/%m} a {janela[1]:%d/%m}, '
-                   f'já com as taxas.']
+        partes += ['', f'🛵 *IFOOD — SEMANA {janela[0]:%d/%m} A {janela[1]:%d/%m}*', '']
+        if entrada.get('ifood_faturado'):
+            partes.append(f'· Faturamento: R$ {brl(entrada["ifood_faturado"])}')
+        partes += [f'· Previsão de recebimento: *R$ {brl(entrada["ifood_previa"])}*',
+                   f'· Entra na quarta, {entrada["data_repasse"]:%d/%m}.']
 
     return '\n'.join(partes) + '\n'
 
@@ -487,6 +487,8 @@ def main():
                         help='repasse do iFood JA LIQUIDO, informado na mao; pode repetir '
                              '(ex.: --ifood-valor "Grupo Ragga=401827.58"). Tem precedencia '
                              'sobre --ifood')
+    parser.add_argument('--ifood-faturado', dest='ifood_faturado', type=float,
+                        help='faturamento bruto da semana do iFood, para mostrar junto da previa')
     parser.add_argument('--b2b', type=float, help='valor do B2B da iKI, quando houver base')
     parser.add_argument('--a-prazo', dest='a_prazo', default=A_PRAZO_PADRAO,
                         help='CSV de vendas a prazo (padrao: vendas_a_prazo.csv do projeto)')
@@ -581,6 +583,7 @@ def main():
     # na segunda o repasse cai na quarta seguinte
     entrada['data_repasse'] = (data_prevista + datetime.timedelta(days=2)
                                if eh_segunda else None)
+    entrada['ifood_faturado'] = args.ifood_faturado
 
     txt = os.path.join(args.saida, 'texto_whatsapp.txt')
     with open(txt, 'w') as arquivo:
