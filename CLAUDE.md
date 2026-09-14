@@ -100,15 +100,76 @@ quarta 16/09 apontam ambas para a semana 07/09 a 13/09.
 Nos outros dias da semana não há janela, e os PDFs de `--ifood` são ignorados
 com aviso.
 
-> **ATENÇÃO — a taxa não explica a diferença medida.**
-> Único par medido (semana 31/08–06/09): faturado do Cloudfy R$ 563.296,83 →
-> repasse real R$ 424.051,60, ou seja **24,72% abaixo**, contra os 12,02% da
-> taxa. Se essa razão se repetir, a estimativa de segunda sai **alta em uns
-> R$ 70 mil** por semana. Com um só ponto de comparação não dá para concluir
-> que 75,28% é a regra — **acumular os pares faturado × repasse real toda
-> semana** e, quando houver amostra, decidir entre aplicar a taxa ou a razão
-> observada. Ao mandar a estimativa de segunda, **sempre avisar no chat** que
-> ela pode estar otimista.
+### O relatório de pedidos do iFood (fonte certa da prévia)
+
+A Hylary exporta toda segunda o `relatorio-pedidos_*.xlsx` do iFood, cobrindo
+a semana seg–dom. **Ele traz o `VALOR LIQUIDO (R$)` pronto, por pedido** — é a
+fonte da prévia de segunda, muito melhor que estimar taxa sobre o Cloudfy.
+
+Regra de limpeza: **descartar só os `CANCELADO`**. Manter `CONCLUIDO`,
+`CANCELAMENTO PARCIAL` e `CONFIRMED`.
+
+Identidade validada em 96,3% das linhas:
+
+```
+VALOR LIQUIDO = VALOR DOS ITENS − INCENTIVO PROMOCIONAL DA LOJA + TAXAS E COMISSOES
+```
+
+#### A estrutura real de taxa (medida, não estimada)
+
+Ajuste sobre 3.189 pedidos, erro médio de R$ 0,004:
+
+```
+TAXAS E COMISSOES = 10,600% × VALOR DOS ITENS + taxa fixa por pedido
+```
+
+- **10,600%** = comissão 8% + transação 2,60%. Bate exatamente com as taxas
+  que ela passou.
+- **taxa fixa por pedido**: R$ 3,46 / R$ 3,99 / R$ 5,46 / R$ 5,99 conforme a
+  faixa. Média R$ 4,46. **Ela não sabia dessa taxa** — e ela é quase metade do
+  que o iFood cobra (R$ 63.648,41 de R$ 133.503,77 na semana 07–13/09).
+- **A antecipação de 1,59% NÃO está nessa coluna** (a inclinação medida é
+  10,600%, não 12,19%). Se for cobrada depois, incide sobre o líquido.
+- A taxa de entrega paga pelo cliente **não entra** no cálculo: pedidos com os
+  mesmos itens e entregas diferentes têm taxa idêntica.
+
+#### O desconto real é ~40%, não 12%
+
+Semana 07–13/09, pedidos liquidados:
+
+| | | % dos itens |
+|---|---:|---:|
+| Valor dos itens | R$ 659.012,79 | 100% |
+| − Incentivo promocional da **loja** | −R$ 110.321,83 | 16,74% |
+| − Comissão + transação | −R$ 69.855,36 | 10,60% |
+| − Taxa fixa por pedido | −R$ 63.648,41 | 9,66% |
+| **= Valor líquido** | **R$ 397.039,13** | **60,25%** |
+
+O incentivo promocional da loja é desconto que o Grupo banca, não taxa, mas
+sai do líquido igual — e é a maior das deduções.
+
+> **Cuidado: o último dia da semana costuma vir incompleto.** Em 07–13/09,
+> **803 dos 1.603 pedidos de domingo** estavam com taxa e líquido zerados (não
+> liquidados). Os outros seis dias vieram completos. **Sempre conferir quantas
+> linhas têm `VALOR LIQUIDO = 0` e em que dia caem**; se houver, estimar o que
+> falta pela razão líquido/itens dos liquidados e avisar no chat.
+
+#### Cloudfy × relatório de pedidos
+
+`PAGAMENTO ONLINE` do Cloudfy espelha **`VALOR DOS ITENS − INCENTIVO DA LOJA`**
+do iFood — não o valor líquido, e não o valor dos itens puro.
+
+A virada de dia é às **02h**, não à meia-noite: agrupar os pedidos por
+`DATA E HORA DO PEDIDO − 2h` reduz o erro diário de R$ 3.877 para R$ 2.861.
+
+Semana 07–13/09: Cloudfy R$ 555.505,94 × iFood R$ 579.344,26 → Cloudfy fica
+**4,1% abaixo**. A **Dell'iris está nos dois** (4 lojas no relatório de
+pedidos, 988 pedidos, R$ 32.559,78) — não procurar um relatório separado dela.
+
+> **Por que a estimativa por taxa dava errado:** aplicar 12,02% sobre o
+> faturado do Cloudfy deu R$ 488.726,02 para 07–13/09, contra um líquido real
+> de ~R$ 422 mil. **Erro de R$ 66 mil.** Por isso a prévia de segunda passa a
+> sair do `VALOR LIQUIDO` do relatório de pedidos, não de taxa sobre o Cloudfy.
 
 **O valor NÃO sai do Cloudfy.** O `PAGAMENTO ONLINE` do relatório é a *venda*,
 não o *repasse* — medido em 09/09, a diferença foi de **24,72%**, muito acima
