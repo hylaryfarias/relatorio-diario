@@ -48,7 +48,12 @@ python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf \
     --dia-previsto 09/09/2026 --ifood semana1.pdf --ifood semana2.pdf
 ```
 
-**O valor do repasse nao sai do Cloudfy**: o `PAGAMENTO ONLINE` de la e a
+O fechamento e de segunda a domingo, entao a parcela entra em duas datas: na
+**segunda** como estimativa do faturado do Cloudfy com taxa (`--ifood`), e na
+**quarta** com o valor real na mao (`--ifood-valor`). As duas apontam para a
+mesma semana.
+
+**O valor real do repasse nao sai do Cloudfy**: o `PAGAMENTO ONLINE` de la e a
 venda, nao o repasse (diferenca medida de 24,72%). Informe na mao:
 
 ```bash

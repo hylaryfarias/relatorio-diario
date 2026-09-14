@@ -53,7 +53,15 @@ CARTAO_E_PIX = ['TEF - CREDITO', 'TEF - DEBITO', 'PIX MAQUININHA']
 # taxa de novo. A janela seg-dom e a regra da quarta continuam valendo para
 # dizer a que semana o repasse se refere.
 IFOOD_FORMA = 'PAGAMENTO ONLINE'
-QUARTA = 2  # datetime.date.weekday(): segunda=0
+
+# datetime.date.weekday(): segunda=0 ... domingo=6
+SEGUNDA, QUARTA = 0, 2
+
+# O fechamento do iFood e de segunda a domingo. Entao:
+#   - na SEGUNDA a semana ja fechou e da para ESTIMAR o repasse a partir do
+#     faturado do Cloudfy, com as taxas aplicadas;
+#   - na QUARTA o dinheiro cai de verdade, e o valor vem na mao (--ifood-valor).
+# As duas datas apontam para a MESMA semana e, portanto, para o MESMO dinheiro.
 
 # ---------------------------------------------------------------------------
 # Taxas para estimar o LIQUIDO da entrada prevista. Sao estimativas, nao a
@@ -180,12 +188,17 @@ def ler_ifood_manual(entradas):
 def janela_ifood(dia_previsto):
     """Semana de referencia do repasse do iFood para uma data prevista.
 
-    Devolve (segunda, domingo) como date, ou None se a data nao for quarta.
+    Devolve (segunda, domingo) como date na SEGUNDA (estimativa do faturado
+    que acabou de fechar) e na QUARTA (dia em que o repasse cai). Nos demais
+    dias devolve None. Segunda e a quarta seguinte apontam para a mesma semana.
     """
     data = datetime.datetime.strptime(dia_previsto, '%d/%m/%Y').date()
-    if data.weekday() != QUARTA:
+    if data.weekday() == SEGUNDA:      # semana fechou ontem
+        domingo = data - datetime.timedelta(days=1)
+    elif data.weekday() == QUARTA:     # dia do repasse
+        domingo = data - datetime.timedelta(days=3)
+    else:
         return None
-    domingo = data - datetime.timedelta(days=3)
     return domingo - datetime.timedelta(days=6), domingo
 
 
@@ -517,8 +530,8 @@ def main():
     elif ifood_manual:
         pass
     elif args.ifood and janela is None:
-        print(f'AVISO: {dia_previsto} nao e quarta-feira, entao nao ha repasse de '
-              f'iFood nesse dia. Os PDFs de --ifood foram ignorados.', file=sys.stderr)
+        print(f'AVISO: {dia_previsto} nao e segunda nem quarta, entao nao ha semana '
+              f'de iFood fechada. Os PDFs de --ifood foram ignorados.', file=sys.stderr)
     elif args.ifood:
         ifood, ifood_faltando = somar_ifood(args.ifood, janela)
         if ifood_faltando:
@@ -527,9 +540,15 @@ def main():
                   f'{", ".join(f"{d:%d/%m}" for d in ifood_faltando)}. '
                   f'O repasse esta SUBESTIMADO.', file=sys.stderr)
     elif janela is not None:
-        print(f'AVISO: {dia_previsto} e quarta-feira, entao tem repasse de iFood '
-              f'de {janela[0]:%d/%m} a {janela[1]:%d/%m}. Informe o valor em '
-              f'--ifood-valor (o Cloudfy nao serve para isso).', file=sys.stderr)
+        dia_semana = datetime.datetime.strptime(dia_previsto, '%d/%m/%Y').date().weekday()
+        if dia_semana == SEGUNDA:
+            print(f'AVISO: {dia_previsto} e segunda: a semana do iFood '
+                  f'({janela[0]:%d/%m} a {janela[1]:%d/%m}) fechou ontem. Passe os PDFs '
+                  f'em --ifood para estimar o faturado com taxa.', file=sys.stderr)
+        else:
+            print(f'AVISO: {dia_previsto} e quarta: o repasse do iFood '
+                  f'({janela[0]:%d/%m} a {janela[1]:%d/%m}) cai hoje. Informe o valor '
+                  f'real em --ifood-valor.', file=sys.stderr)
 
     titulos = ler_a_prazo(args.a_prazo)
     override = json.load(open(args.entrada)) if args.entrada else None
@@ -578,7 +597,7 @@ def main():
 
     if entrada['ifood'] is None:
         print('  repasse iFood                '
-              + ('nao e quarta-feira' if janela is None else 'FALTA --ifood'))
+              + ('fora de segunda/quarta' if janela is None else 'FALTA --ifood'))
     elif entrada['ifood_manual']:
         print(f'  repasse iFood (na mao, ja liquido)')
         for rotulo, valor in entrada['ifood_manual']:
