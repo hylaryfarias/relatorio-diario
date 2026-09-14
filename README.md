@@ -48,10 +48,16 @@ python3 gerar_relatorio.py setembro.pdf --mes-anterior agosto.pdf \
     --dia-previsto 09/09/2026 --ifood semana1.pdf --ifood semana2.pdf
 ```
 
-O fechamento e de segunda a domingo, entao a parcela entra em duas datas: na
-**segunda** como estimativa do faturado do Cloudfy com taxa (`--ifood`), e na
-**quarta** com o valor real na mao (`--ifood-valor`). As duas apontam para a
-mesma semana.
+A semana fecha no **domingo** e o repasse entra na **quarta**. Entao:
+
+- na **segunda** o valor ja da para calcular a partir do faturado do Cloudfy
+  (`--ifood`, com as taxas), mas e so uma **previa**: sai num bloco separado do
+  texto e **nao entra no total do dia**;
+- na **quarta** o dinheiro entra de verdade e vira parcela do total, com o
+  valor real informado em `--ifood-valor`.
+
+As duas datas apontam para a mesma semana, por isso a previa de segunda fica
+fora da soma -- somar nas duas contaria o mesmo dinheiro duas vezes.
 
 **O valor real do repasse nao sai do Cloudfy**: o `PAGAMENTO ONLINE` de la e a
 venda, nao o repasse (diferenca medida de 24,72%). Informe na mao:

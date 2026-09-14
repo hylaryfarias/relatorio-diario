@@ -85,21 +85,22 @@ de 27/08 o previsto (R$ 101.481,14) bate com crédito + débito + Pix
 O fechamento do iFood é de **segunda a domingo**, e isso abre **duas** datas em
 que a parcela entra:
 
-| Dia previsto | O que entra | De onde |
-|---|---|---|
-| **Segunda** | **estimativa** do repasse: a semana fechou no domingo | faturado do Cloudfy (`--ifood`) **com as taxas aplicadas** |
-| **Quarta** | o repasse **real**, que cai nesse dia | valor na mão (`--ifood-valor`), já líquido |
+| Dia previsto | O que é | Entra no total? | De onde |
+|---|---|---|---|
+| **Segunda** | **prévia**: a semana fechou domingo, então o valor já dá para calcular | **NÃO** — sai num bloco à parte do texto | faturado do Cloudfy (`--ifood`) com as taxas |
+| **Quarta** | o repasse **entra de verdade** | **SIM**, é parcela do total | valor na mão (`--ifood-valor`), já líquido |
 
-O script calcula a janela sozinho e **as duas datas apontam para a mesma
-semana**: segunda 14/09 e quarta 16/09 dão ambas 07/09 a 13/09. Nos outros dias
-da semana não há janela, e os PDFs de `--ifood` são ignorados com aviso.
+**A regra que resolve tudo: a semana fecha no domingo e o dinheiro entra na
+quarta.** Segunda é só quando já dá para saber o número — não é entrada de
+segunda. Por isso a prévia fica **fora do total do dia** e vai no texto como
+bloco separado (`🛵 REPASSE DO IFOOD — ENTRA QUARTA dd/mm`). Somar a prévia no
+total de segunda contaria o mesmo dinheiro duas vezes, já que segunda 14/09 e
+quarta 16/09 apontam ambas para a semana 07/09 a 13/09.
 
-> **PENDÊNCIA EM ABERTO — não resolver sozinho, perguntar.**
-> Como segunda e quarta apontam para o mesmo dinheiro, incluir a parcela nas
-> duas mensagens conta o repasse **duas vezes**. Falta a Hylary decidir se, na
-> quarta, o valor real substitui a estimativa, se repete, ou se fica de fora.
+Nos outros dias da semana não há janela, e os PDFs de `--ifood` são ignorados
+com aviso.
 
-> **PENDÊNCIA EM ABERTO — a taxa não explica a diferença medida.**
+> **ATENÇÃO — a taxa não explica a diferença medida.**
 > Único par medido (semana 31/08–06/09): faturado do Cloudfy R$ 563.296,83 →
 > repasse real R$ 424.051,60, ou seja **24,72% abaixo**, contra os 12,02% da
 > taxa. Se essa razão se repetir, a estimativa de segunda sai **alta em uns

@@ -57,11 +57,14 @@ IFOOD_FORMA = 'PAGAMENTO ONLINE'
 # datetime.date.weekday(): segunda=0 ... domingo=6
 SEGUNDA, QUARTA = 0, 2
 
-# O fechamento do iFood e de segunda a domingo. Entao:
-#   - na SEGUNDA a semana ja fechou e da para ESTIMAR o repasse a partir do
-#     faturado do Cloudfy, com as taxas aplicadas;
-#   - na QUARTA o dinheiro cai de verdade, e o valor vem na mao (--ifood-valor).
-# As duas datas apontam para a MESMA semana e, portanto, para o MESMO dinheiro.
+# A semana do iFood fecha no DOMINGO e o repasse cai na QUARTA. Logo:
+#   - na SEGUNDA ja da para CALCULAR o valor (a semana fechou ontem), mas ele
+#     NAO e entrada de segunda: e uma PREVIA do que entra na quarta. Vai no
+#     texto como bloco separado, FORA do total do dia;
+#   - na QUARTA o dinheiro entra de verdade e vira parcela do total, com o
+#     valor real informado em --ifood-valor.
+# Contar a previa de segunda dentro do total do dia contaria o mesmo dinheiro
+# duas vezes -- por isso ela fica de fora da soma.
 
 # ---------------------------------------------------------------------------
 # Taxas para estimar o LIQUIDO da entrada prevista. Sao estimativas, nao a
@@ -356,12 +359,12 @@ PARCELAS = ('vendas', 'voucher', 'ifood', 'a_prazo', 'b2b')
 
 def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
                      ifood=None, b2b=None, override=None, liquido=True,
-                     ifood_manual=None):
+                     ifood_manual=None, ifood_entra=True):
     """Monta as parcelas da entrada prevista.
 
     vendas   -> credito + debito + pix do periodo atual (venda bruta)
     voucher  -> voucher do mesmo periodo do mes anterior (D+30)
-    ifood    -> PAGAMENTO ONLINE da semana seg-dom anterior, so nas quartas
+    ifood    -> repasse do iFood, so quando a data prevista e QUARTA
 
     Com liquido=True (padrao) cartao, voucher e a estimativa de iFood saem
     liquidos das taxas. Venda a prazo e B2B saem brutos (boleto).
@@ -401,6 +404,13 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
     }
     if override:
         entrada.update({k: v for k, v in override.items() if k in PARCELAS})
+    # Na segunda o iFood e so previa do que cai na quarta: sai do total.
+    if not ifood_entra:
+        entrada['ifood_previa'] = entrada['ifood']
+        entrada['ifood'] = None
+    else:
+        entrada['ifood_previa'] = None
+
     entrada['total'] = sum(entrada[p] for p in PARCELAS if entrada[p] is not None)
     return entrada
 
@@ -448,6 +458,16 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
                       f'Alimentícios – B2B.')
 
     partes[-1] = partes[-1].rstrip(';') + '.'  # a ultima linha fecha com ponto
+
+    # A previa do iFood fica FORA do total: o dinheiro so entra na quarta.
+    if entrada.get('ifood_previa') is not None:
+        janela = entrada['janela_ifood']
+        partes += ['', f'🛵 *REPASSE DO IFOOD — ENTRA QUARTA '
+                       f'{entrada["data_repasse"]:%d/%m}*', '',
+                   f'*R$ {brl(entrada["ifood_previa"])}*', '',
+                   f'· Faturamento de {janela[0]:%d/%m} a {janela[1]:%d/%m}, '
+                   f'já com as taxas.']
+
     return '\n'.join(partes) + '\n'
 
 
@@ -552,10 +572,15 @@ def main():
 
     titulos = ler_a_prazo(args.a_prazo)
     override = json.load(open(args.entrada)) if args.entrada else None
+    data_prevista = datetime.datetime.strptime(dia_previsto, '%d/%m/%Y').date()
+    eh_segunda = data_prevista.weekday() == SEGUNDA
     entrada = calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
                                ifood, args.b2b, override, liquido=not args.bruto,
-                               ifood_manual=ifood_manual)
+                               ifood_manual=ifood_manual, ifood_entra=not eh_segunda)
     entrada['janela_ifood'] = janela
+    # na segunda o repasse cai na quarta seguinte
+    entrada['data_repasse'] = (data_prevista + datetime.timedelta(days=2)
+                               if eh_segunda else None)
 
     txt = os.path.join(args.saida, 'texto_whatsapp.txt')
     with open(txt, 'w') as arquivo:
@@ -595,7 +620,12 @@ def main():
         print(f'  {"= voucher D+30":<28} {brl(bruto_voucher):>14} '
               f'{brl(entrada["taxa_voucher"] * 100)+"%":>7} {brl(entrada["voucher"]):>14}')
 
-    if entrada['ifood'] is None:
+    if entrada['ifood_previa'] is not None:
+        print(f'  PREVIA iFood (NAO entra hoje)    {brl(entrada["ifood_bruto"] or 0):>10} '
+              f'{brl(entrada["taxa_ifood"] * 100)+"%":>7} {brl(entrada["ifood_previa"]):>14}')
+        print(f'    semana {janela[0]:%d/%m} a {janela[1]:%d/%m}, '
+              f'cai na quarta {entrada["data_repasse"]:%d/%m}')
+    elif entrada['ifood'] is None:
         print('  repasse iFood                '
               + ('fora de segunda/quarta' if janela is None else 'FALTA --ifood'))
     elif entrada['ifood_manual']:
