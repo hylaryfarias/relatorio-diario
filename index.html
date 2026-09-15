@@ -133,6 +133,32 @@
   .obs:focus{border-color:var(--brand)}
   .obs::placeholder{color:var(--ink-3)}
 
+  /* barra de sincronizacao: uma pessoa publica, o time le */
+  .sync{display:flex;gap:9px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2);
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:9px 13px;margin-bottom:18px;box-shadow:var(--shadow)}
+  .sync .ponto{width:8px;height:8px;border-radius:50%;background:var(--ink-3);flex:none}
+  .sync.ok .ponto{background:var(--ok)}
+  .sync.ativo .ponto{background:var(--warn)}
+  .sync.erro .ponto{background:var(--brand)}
+  .sync .esp{flex:1 1 12px}
+  .sync .lnk{font:inherit;font-size:12.5px;font-weight:600;color:var(--brand);background:none;border:0;
+    padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  .sync .lnk:hover{color:var(--brand-dark)}
+  .chave{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;
+    margin-bottom:18px;box-shadow:var(--shadow)}
+  .chave h3{margin:0 0 6px;font-size:14.5px;font-weight:700;letter-spacing:-.01em}
+  .chave p{margin:0 0 10px;font-size:12.5px;color:var(--ink-2);max-width:72ch}
+  .chave ol{margin:0 0 12px;padding-left:18px;font-size:12.5px;color:var(--ink-2);line-height:1.7}
+  .chave input{font:inherit;font-size:13px;width:100%;max-width:440px;padding:8px 10px;
+    border:1px solid var(--line-2);border-radius:7px;background:var(--sunk);color:var(--ink)}
+  .chave .linha{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  /* visitante: ve tudo, nao mexe em nada */
+  body.leitura .pick,body.leitura .btn-semana,body.leitura .remover,body.leitura .reset,
+  body.leitura .drop p,body.leitura #limpar{display:none!important}
+  body.leitura .obs,body.leitura .flag,body.leitura .rotulo-semana,
+  body.leitura input[type=checkbox],body.leitura .kw{pointer-events:none}
+  body.leitura .obs,body.leitura .rotulo-semana,body.leitura .kw{background:transparent;border-color:transparent}
   details{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
   summary{padding:13px 16px;cursor:pointer;font-weight:600;font-size:14.5px;letter-spacing:-.01em;
     display:flex;gap:10px;align-items:center;justify-content:space-between}
@@ -175,6 +201,33 @@
 </div>
 
 <div class="wrap">
+
+  <div class="sync" id="sync">
+    <span class="ponto"></span>
+    <span id="syncTxt">Verificando o painel do time…</span>
+    <span class="esp"></span>
+    <button class="lnk" type="button" id="btnPublicar" hidden>Publicar agora</button>
+    <button class="lnk" type="button" id="btnLink" hidden>Copiar link do time</button>
+    <button class="lnk" type="button" id="btnEditar">Sou eu — ativar edição</button>
+    <button class="lnk" type="button" id="btnSair" hidden>Sair da edição</button>
+  </div>
+
+  <div class="chave" id="chave" hidden>
+    <h3>Ativar edição</h3>
+    <p>Cole aqui um token do GitHub com permissão de <strong>Gists</strong>. Ele fica guardado só neste navegador, nunca vai para o repositório, e é o que permite publicar o painel para o time.</p>
+    <ol>
+      <li>Abra <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a></li>
+      <li>Em <strong>Token name</strong>, escreva <code>painel de depósitos</code>; em <strong>Expiration</strong>, escolha o prazo que preferir</li>
+      <li>Em <strong>Account permissions</strong>, ache <strong>Gists</strong> e marque <strong>Read and write</strong></li>
+      <li>Clique em <strong>Generate token</strong> e copie o código que aparece</li>
+    </ol>
+    <input type="password" id="inpToken" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+    <div class="linha">
+      <button class="pick" type="button" id="btnSalvarToken">Ativar</button>
+      <button class="lnk" type="button" id="btnCancelarToken">Cancelar</button>
+      <span class="hint" id="chaveMsg"></span>
+    </div>
+  </div>
   <div class="drops">
     <div class="drop" id="dropA">
       <span class="eyebrow">Fonte 1</span>
@@ -760,8 +813,203 @@
     if(novos.length) novos[novos.length-1].focus();
   });
 
+  /* ------------------------------------------------------------------ *
+   * Sincronizacao: uma pessoa publica, o time inteiro le.
+   * O estado vai para um gist secreto do GitHub, na conta dela. Quem tem
+   * o token publica; quem so abre o link enxerga o publicado e nao mexe.
+   * ------------------------------------------------------------------ */
+  var LS_TOKEN = "ragga-depara-token-v1";
+  var LS_GIST  = "ragga-depara-gist-v1";
+  var GIST_PADRAO = "";                       // id do painel do time, quando existir
+  var ARQ = "painel-depositos.json";
+  var sync = { gist:"", token:"", carimbo:0, publicando:false, timer:null, aplicando:false, sujo:false };
+
+  function pegar(k){ try{ return localStorage.getItem(k) || ""; }catch(e){ return ""; } }
+  function guardar(k,v){ try{ v ? localStorage.setItem(k,v) : localStorage.removeItem(k); }catch(e){} }
+  function editor(){ return !!sync.token; }
+  function gistDaUrl(){ var m = location.search.match(/[?&]g=([A-Za-z0-9]+)/); return m ? m[1] : ""; }
+  function linkDoTime(){ return location.origin + location.pathname + (sync.gist ? "?g=" + sync.gist : ""); }
+
+  function quando(ts){
+    if(!ts) return "";
+    var s = Math.round((Date.now()-ts)/1000);
+    if(s < 90) return "agora";
+    if(s < 5400) return "há " + Math.round(s/60) + " min";
+    if(s < 172800) return "há " + Math.round(s/3600) + " h";
+    return "em " + new Date(ts).toLocaleDateString("pt-BR");
+  }
+  function pintar(classe, texto){
+    $("sync").className = "sync" + (classe ? " " + classe : "");
+    $("syncTxt").textContent = texto;
+    $("btnPublicar").hidden = !editor();
+    $("btnLink").hidden     = !(editor() && sync.gist);
+    $("btnSair").hidden     = !editor();
+    $("btnEditar").hidden   = editor();
+  }
+  function situacao(){
+    if(editor()){
+      if(sync.publicando) return pintar("ativo","Publicando para o time…");
+      if(sync.sujo)       return pintar("ativo","Alterações ainda não publicadas");
+      if(sync.gist)       return pintar("ok","Você está editando · publicado " + quando(sync.carimbo));
+      return pintar("ativo","Edição ativa · nada publicado ainda");
+    }
+    if(!sync.gist)   return pintar("","Painel local: o que você faz aqui fica só neste navegador");
+    if(sync.carimbo) return pintar("ok","Painel do time · atualizado " + quando(sync.carimbo));
+    pintar("","Lendo o painel do time…");
+  }
+
+  function rotulos(){
+    if(estado.nomeA){
+      $("fA").textContent = "✓ " + estado.nomeA + " · " + estado.sangria.length + " lançamentos";
+      $("fA").hidden = false; $("pA").hidden = true; $("dropA").classList.add("filled");
+    }
+    if(estado.nomeB){
+      $("fB").textContent = "✓ " + estado.nomeB + " · " + estado.extrato.length + " créditos";
+      $("fB").hidden = false; $("pB").hidden = true; $("dropB").classList.add("filled");
+      $("vazioB").hidden = true;
+    }
+  }
+  function pacote(){
+    return { v:1, ts:Date.now(),
+      dados:{ sangria:estado.sangria, extrato:estado.extrato, amostra:estado.amostra,
+              nomeA:estado.nomeA, nomeB:estado.nomeB, semanas:estado.semanas, kw:$("kw").value },
+      vinculos:estado.vinculos, notas:estado.notas };
+  }
+  function aplicar(p){
+    if(!p || !p.dados) return false;
+    sync.aplicando = true;
+    var d = p.dados;
+    estado.sangria = d.sangria || [];  estado.extrato = d.extrato || [];
+    estado.amostra = !!d.amostra;      estado.semanas = d.semanas || [];
+    estado.nomeA = d.nomeA || "";      estado.nomeB = d.nomeB || "";
+    estado.vinculos = p.vinculos || {};
+    estado.notas = p.notas || {};
+    if(d.kw) $("kw").value = d.kw;
+    sync.carimbo = p.ts || 0;
+    rotulos(); salvarDados(); salvar(); render();
+    sync.aplicando = false;
+    return true;
+  }
+
+  function baixar(cb){
+    if(!sync.gist) return cb("sem painel");
+    fetch("https://api.github.com/gists/" + sync.gist + "?t=" + Date.now(),
+          { cache:"no-store", headers:{ Accept:"application/vnd.github+json" } })
+      .then(function(r){ if(!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function(g){
+        var f = g.files && g.files[ARQ];
+        if(!f) throw new Error("painel vazio");
+        if(f.truncated && f.raw_url) return fetch(f.raw_url,{cache:"no-store"}).then(function(r){ return r.text(); });
+        return f.content;
+      })
+      .then(function(txt){ cb(null, JSON.parse(txt)); })
+      .catch(function(e){ cb(e.message || "falhou"); });
+  }
+
+  function publicar(){
+    if(!editor() || sync.publicando) return;
+    sync.publicando = true; situacao();
+    var novo = !sync.gist, corpo = { files:{} };
+    corpo.files[ARQ] = { content: JSON.stringify(pacote()) };
+    if(novo){
+      corpo.description = "Painel de retiradas para depósito — Grupo Ragga";
+      corpo["public"] = false;
+    }
+    fetch("https://api.github.com/gists" + (novo ? "" : "/" + sync.gist), {
+      method: novo ? "POST" : "PATCH",
+      headers:{ Accept:"application/vnd.github+json", "Content-Type":"application/json",
+                Authorization:"Bearer " + sync.token },
+      body: JSON.stringify(corpo)
+    }).then(function(r){
+      if(r.status === 401 || r.status === 403) throw new Error("token recusado pelo GitHub");
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function(g){
+      sync.gist = g.id; guardar(LS_GIST, g.id);
+      sync.carimbo = Date.now(); sync.sujo = false; sync.publicando = false;
+      situacao();
+    }).catch(function(e){
+      sync.publicando = false;
+      pintar("erro","Não consegui publicar: " + (e.message||"falhou") + " · o que você fez está salvo aqui");
+    });
+  }
+
+  function agendar(){
+    if(!editor() || sync.aplicando) return;
+    sync.sujo = true; situacao();
+    clearTimeout(sync.timer);
+    sync.timer = setTimeout(publicar, 2500);
+  }
+  var _salvar = salvar, _salvarDados = salvarDados;
+  salvar      = function(){ _salvar();      agendar(); };
+  salvarDados = function(){ _salvarDados(); agendar(); };
+
+  function iniciarSync(){
+    sync.token = pegar(LS_TOKEN);
+    sync.gist  = gistDaUrl() || pegar(LS_GIST) || GIST_PADRAO;
+    if(gistDaUrl()) guardar(LS_GIST, gistDaUrl());
+    // so trava a edicao quando existe painel publicado por outra pessoa
+    document.body.classList.toggle("leitura", !editor() && !!sync.gist);
+    situacao();
+
+    if(sync.gist) baixar(function(erro, p){
+      if(erro){ if(!editor()) pintar("erro","Não consegui ler o painel do time: " + erro); return; }
+      // quem so le sempre acompanha o publicado; quem edita so volta atras se
+      // o publicado for mais novo do que o que esta aberto aqui
+      if(!editor() || (p.ts||0) > (sync.carimbo||0)) aplicar(p);
+      situacao();
+    });
+
+    setInterval(function(){
+      if(editor() || !sync.gist){ situacao(); return; }
+      baixar(function(erro, p){
+        if(erro) return;
+        if((p.ts||0) > (sync.carimbo||0)) aplicar(p);
+        situacao();
+      });
+    }, 60000);
+
+    $("btnEditar").addEventListener("click", function(){
+      $("chave").hidden = false; $("inpToken").focus();
+    });
+    $("btnCancelarToken").addEventListener("click", function(){
+      $("chave").hidden = true; $("inpToken").value = ""; $("chaveMsg").textContent = "";
+    });
+    $("btnSalvarToken").addEventListener("click", function(){
+      var t = $("inpToken").value.trim();
+      if(!t){ $("chaveMsg").textContent = "Cole o token antes de ativar."; return; }
+      $("chaveMsg").textContent = "Conferindo com o GitHub…";
+      fetch("https://api.github.com/user", { headers:{ Accept:"application/vnd.github+json",
+                                                       Authorization:"Bearer " + t } })
+        .then(function(r){
+          if(!r.ok) throw new Error(r.status === 401 ? "token inválido" : "HTTP " + r.status);
+          return r.json();
+        })
+        .then(function(){
+          sync.token = t; guardar(LS_TOKEN, t);
+          $("chave").hidden = true; $("inpToken").value = ""; $("chaveMsg").textContent = "";
+          document.body.classList.remove("leitura");
+          sync.sujo = true; situacao(); publicar();
+        })
+        .catch(function(e){ $("chaveMsg").textContent = "Não deu certo: " + (e.message||"falhou"); });
+    });
+    $("btnSair").addEventListener("click", function(){
+      sync.token = ""; guardar(LS_TOKEN, "");
+      document.body.classList.toggle("leitura", !!sync.gist);
+      situacao();
+    });
+    $("btnPublicar").addEventListener("click", function(){ clearTimeout(sync.timer); publicar(); });
+    $("btnLink").addEventListener("click", function(){
+      var u = linkDoTime();
+      if(navigator.clipboard) navigator.clipboard.writeText(u);
+      pintar("ok","Link copiado: " + u);
+      setTimeout(situacao, 6000);
+    });
+  }
+
   if(!restaurarDados()) carregarAmostra();
   render();
+  iniciarSync();
 })();
 </script>
 </body>
