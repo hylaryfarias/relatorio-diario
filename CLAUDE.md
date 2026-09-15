@@ -467,6 +467,21 @@ Outras categorias que aparecem e ficam de fora: pagamento a freelancer,
 compra/despesa (gelo, arroz, café, pit stop), reembolso e estorno a cliente,
 pagamento de entregador por fora quando a TAON está sem limite.
 
+## A descrição manda — e vai furar às vezes
+
+**Classificar sempre pela descrição, e só por ela.** A descrição erra em alguns
+casos: em 13/09 a BIGGS 13 registrou `RETIRADA SUPRIMENTO CAIXA E DELIVERY
+DIURNO` (R$ 2.350,00) e era depósito — o operador ia suprir o caixa, não
+precisou, e depositou.
+
+Isso é **normal e esperado**, e a Hylary já decidiu como lidar: **ela acha
+esses casos quando o valor cai no extrato.** Consequências para mim:
+
+- **não propor lista de "suspeitos"** nem pedir confirmação de lançamentos que
+  a descrição classifica como suprimento — ela não quer esse ruído;
+- **não tentar adivinhar** por valor alto ou por padrão de caixa;
+- quando ela apontar um furo, **incluir aquele lançamento** e seguir.
+
 ## Conciliação
 
 Pergunta sobre **por que** o dinheiro entra assim (taxas, prazos, EDI, vales,
