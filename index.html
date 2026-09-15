@@ -95,7 +95,7 @@
   .tbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
   .scroll{overflow-x:auto}
   table{border-collapse:collapse;width:100%;min-width:600px}
-  #tabDepara{min-width:880px}
+  #tabDepara{min-width:1000px}
   th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
     text-align:left;padding:10px 14px;background:var(--sunk);border-bottom:1px solid var(--line);white-space:nowrap}
   td{padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
@@ -119,8 +119,10 @@
   .reset{font:inherit;font-size:14px;line-height:1;border:0;background:none;color:var(--ink-3);
     cursor:pointer;padding:2px 4px;border-radius:5px}
   .reset:hover{color:var(--brand);background:var(--brand-soft)}
-  .obs{font:inherit;font-size:13px;width:100%;min-width:190px;padding:6px 9px;border:1px solid var(--line);
-    border-radius:7px;background:var(--surface);color:var(--ink)}
+  .obs{font:inherit;font-family:inherit;font-size:13px;line-height:1.45;width:100%;display:block;
+    padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);
+    color:var(--ink);resize:none;overflow:hidden;min-height:34px}
+  #tabDepara th:last-child,#tabDepara td:last-child{min-width:300px;width:34%}
   .obs:focus{border-color:var(--brand)}
   .obs::placeholder{color:var(--ink-3)}
 
@@ -504,6 +506,16 @@
     return dif > 0 ? "falta cair" : "caiu a mais";
   }
 
+  // o campo de observacao cresce junto com o texto, sem barra de rolagem
+  function alturaObs(el){
+    el.style.height = "auto";
+    el.style.height = Math.max(34, el.scrollHeight) + "px";
+  }
+  function ajustarObs(){
+    var cs = document.querySelectorAll("#tabDepara .obs");
+    for(var i=0;i<cs.length;i++) alturaObs(cs[i]);
+  }
+
   // uma linha da tabela: valores, a flag que ela pode trocar e a observacao
   function linhaLoja(l, temB, semanaId){
     var dif = l.s - l.b;
@@ -527,8 +539,8 @@
         '<select class="flag '+classeFlag(atual)+'" aria-label="Situação de '+esc(l.nome)+'">'+opts+'</select>'+
         (manual ? '<button class="reset" type="button" title="Voltar para a apuração automática ('+esc(auto)+')">&#8634;</button>' : '')+
       '</span></td>'+
-      '<td><input class="obs" type="text" id="obs-'+esc(ck).replace(/[^\w-]/g,"_")+
-        '" placeholder="o que aconteceu" value="'+esc(n.obs||"")+'"></td>';
+      '<td><textarea class="obs" rows="1" id="obs-'+esc(ck).replace(/[^\w-]/g,"_")+
+        '" placeholder="o que aconteceu">'+esc(n.obs||"")+'</textarea></td>';
 
     var sel = tr.querySelector("select");
     sel.addEventListener("change", function(){
@@ -538,7 +550,7 @@
     var rst = tr.querySelector(".reset");
     if(rst) rst.addEventListener("click", function(){ nota(ck).flag = null; salvar(); render(); });
     var obs = tr.querySelector(".obs");
-    obs.addEventListener("input", function(){ nota(ck).obs = obs.value; salvar(); });
+    obs.addEventListener("input", function(){ nota(ck).obs = obs.value; alturaObs(obs); salvar(); });
     return tr;
   }
 
@@ -655,6 +667,8 @@
         salvar(); render();
       });
     });
+
+    ajustarObs();
 
     renderDetalhe("tabA", estado.sangria, "cA", function(r){
       return '<td>'+esc(r.data)+'</td><td>'+esc(r.loja)+'</td><td class="muted">'+esc(r.caixa)+'</td>'+

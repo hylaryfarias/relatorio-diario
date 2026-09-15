@@ -116,6 +116,22 @@ Mais Chromium para o PNG (opcional: sem ele o script salva um `.html`).
 As regras de agrupamento estao no dicionario `GRUPOS`, no topo de
 `gerar_relatorio.py`. Detalhes do processo em [CLAUDE.md](CLAUDE.md).
 
+## Painel Sangria x Extrato
+
+`index.html` na raiz e uma pagina unica que cruza as retiradas para deposito do
+relatorio de sangrias do Cloudfy com os creditos do extrato bancario, loja a
+loja. Roda inteira no navegador: os arquivos que a pessoa sobe nao saem do
+computador dela, e o que fica guardado (arquivos lidos, flags, observacoes,
+vinculos de loja) vive no `localStorage` daquele navegador.
+
+Para publicar: **Settings -> Pages -> Deploy from a branch -> `main` / `(root)`**.
+O endereco fica `https://hylaryfarias.github.io/relatorio-diario/`.
+
+Dependencias externas: SheetJS 0.18.5 (cdnjs) para ler o xlsx e Instrument Sans
+(Google Fonts). As quatro logos vao embutidas como data URI. A Dotties Vanilla
+Heavy, reservada ao H1 pelo manual, e da Lost Type e ainda nao esta embutida —
+ate la o H1 cai em Instrument Sans 700.
+
 ## Envio 2 — entradas do dia
 
 ```bash
