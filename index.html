@@ -145,6 +145,10 @@
   .sync .lnk{font:inherit;font-size:12.5px;font-weight:600;color:var(--brand);background:none;border:0;
     padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
   .sync .lnk:hover{color:var(--brand-dark)}
+  .sync .publicar{font:inherit;font-size:12.5px;font-weight:700;background:var(--brand);color:#fff;
+    border:0;border-radius:7px;padding:7px 14px;cursor:pointer;flex:none}
+  .sync .publicar:hover{background:var(--brand-dark)}
+  .sync .publicar[disabled]{background:var(--ink-3);cursor:default}
   .chave{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;
     margin-bottom:18px;box-shadow:var(--shadow)}
   .chave h3{margin:0 0 6px;font-size:14.5px;font-weight:700;letter-spacing:-.01em}
@@ -156,6 +160,7 @@
   /* visitante: ve tudo, nao mexe em nada */
   body.leitura .pick,body.leitura .btn-semana,body.leitura .remover,body.leitura .reset,
   body.leitura .drop p,body.leitura #limpar{display:none!important}
+  body.leitura #btnSalvarToken{display:inline-block!important}
   body.leitura .obs,body.leitura .flag,body.leitura .rotulo-semana,
   body.leitura input[type=checkbox],body.leitura .kw{pointer-events:none}
   body.leitura .obs,body.leitura .rotulo-semana,body.leitura .kw{background:transparent;border-color:transparent}
@@ -206,10 +211,9 @@
     <span class="ponto"></span>
     <span id="syncTxt">Verificando o painel do time…</span>
     <span class="esp"></span>
-    <button class="lnk" type="button" id="btnPublicar" hidden>Publicar agora</button>
     <button class="lnk" type="button" id="btnLink" hidden>Copiar link do time</button>
-    <button class="lnk" type="button" id="btnEditar">Sou eu — ativar edição</button>
     <button class="lnk" type="button" id="btnSair" hidden>Sair da edição</button>
+    <button class="publicar" type="button" id="btnPublicar">Publicar para o time</button>
   </div>
 
   <div class="chave" id="chave" hidden>
@@ -841,10 +845,17 @@
   function pintar(classe, texto){
     $("sync").className = "sync" + (classe ? " " + classe : "");
     $("syncTxt").textContent = texto;
-    $("btnPublicar").hidden = !editor();
-    $("btnLink").hidden     = !(editor() && sync.gist);
-    $("btnSair").hidden     = !editor();
-    $("btnEditar").hidden   = editor();
+    var b = $("btnPublicar"), soLeitura = !editor() && !!sync.gist;
+    // um botao so: na primeira vez ele pede o token, depois so publica.
+    // para quem so le ele vira um link discreto de assumir a edicao.
+    b.className = soLeitura ? "lnk" : "publicar";
+    b.textContent = soLeitura ? "Sou eu \u2014 editar"
+                  : !editor() ? "Publicar para o time"
+                  : sync.publicando ? "Publicando\u2026"
+                  : sync.sujo ? "Publicar para o time" : "Publicado";
+    b.disabled = editor() && !sync.publicando && !sync.sujo;
+    $("btnLink").hidden = !(editor() && sync.gist);
+    $("btnSair").hidden = !editor();
   }
   function situacao(){
     if(editor()){
@@ -969,8 +980,9 @@
       });
     }, 60000);
 
-    $("btnEditar").addEventListener("click", function(){
-      $("chave").hidden = false; $("inpToken").focus();
+    $("btnPublicar").addEventListener("click", function(){
+      if(!editor()){ $("chave").hidden = false; $("inpToken").focus(); return; }
+      clearTimeout(sync.timer); publicar();
     });
     $("btnCancelarToken").addEventListener("click", function(){
       $("chave").hidden = true; $("inpToken").value = ""; $("chaveMsg").textContent = "";
@@ -998,7 +1010,6 @@
       document.body.classList.toggle("leitura", !!sync.gist);
       situacao();
     });
-    $("btnPublicar").addEventListener("click", function(){ clearTimeout(sync.timer); publicar(); });
     $("btnLink").addEventListener("click", function(){
       var u = linkDoTime();
       if(navigator.clipboard) navigator.clipboard.writeText(u);
