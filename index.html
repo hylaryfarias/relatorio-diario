@@ -61,7 +61,7 @@
   .drop.filled{border-style:solid;border-color:var(--line);box-shadow:var(--shadow)}
   .drop h3{font-weight:600;font-size:14.5px;letter-spacing:-.01em;margin:0}
   .drop p{margin:0;color:var(--ink-3);font-size:12.5px}
-  .drop .file{font-size:11.5px;font-weight:500;color:var(--brand);word-break:break-all}
+  .drop .file{font-size:11.5px;font-weight:500;color:var(--ok);word-break:break-all}
   .pick{align-self:flex-start;font:inherit;font-size:12.5px;font-weight:600;background:var(--brand);color:#fff;
     border:0;border-radius:7px;padding:8px 14px;cursor:pointer}
   .pick:hover{background:var(--brand-dark)}
@@ -347,13 +347,13 @@
       estado.semanas = d.semanas || [];
       if(d.kw) $("kw").value = d.kw;
       if(estado.nomeA){
-        $("fA").textContent = estado.nomeA + " · " + estado.sangria.length + " lançamentos";
+        $("fA").textContent = "\u2713 " + estado.nomeA + " · " + estado.sangria.length + " lançamentos";
         $("fA").hidden = false; $("pA").hidden = true; $("dropA").classList.add("filled");
       }else if(estado.amostra){
         $("pA").textContent = "Exemplo carregado: sangrias de 07 a 14/09/2026. Suba um arquivo para substituir.";
       }
       if(estado.nomeB){
-        $("fB").textContent = estado.nomeB + " · " + estado.extrato.length + " créditos";
+        $("fB").textContent = "\u2713 " + estado.nomeB + " · " + estado.extrato.length + " créditos";
         $("fB").hidden = false; $("pB").hidden = true; $("dropB").classList.add("filled");
         $("vazioB").hidden = true;
       }
@@ -438,7 +438,7 @@
                    valor:numero(l[cV]), motivo:motivo, marcado:ehDepositoSangria(motivo) });
       }
       estado.sangria = out; estado.amostra = false; estado.nomeA = file.name;
-      $("fA").textContent = file.name + " · " + out.length + " lançamentos";
+      $("fA").textContent = "\u2713 " + file.name + " · " + out.length + " lançamentos";
       $("fA").hidden = false; $("pA").hidden = true; $("dropA").classList.add("filled");
       salvarDados(); render();
     });
@@ -474,7 +474,7 @@
                    desc:desc, marcado:ehDepositoExtrato(desc) });
       }
       estado.extrato = out; estado.nomeB = file.name;
-      $("fB").textContent = file.name + " · " + out.length + " créditos";
+      $("fB").textContent = "\u2713 " + file.name + " · " + out.length + " créditos";
       $("fB").hidden = false; $("pB").hidden = true; $("dropB").classList.add("filled");
       $("vazioB").hidden = true;
       salvarDados(); render();
