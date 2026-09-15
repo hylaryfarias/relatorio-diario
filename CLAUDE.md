@@ -263,7 +263,7 @@ lá:
 | Débito (`TEF - DEBITO`) | 0,99% |
 | Pix maquininha | 0% |
 | Voucher | **6,90%** — a maior das operadoras |
-| iFood (`PAGAMENTO ONLINE`) | **12,02% efetivos** — só na estimativa por `--ifood`; o valor de `--ifood-valor` já vem líquido |
+| iFood (`PAGAMENTO ONLINE`) | **25,064% efetivos** (medido) — só na estimativa por `--ifood`; o valor de `--ifood-valor` já vem líquido |
 
 Regras de uso:
 
@@ -272,14 +272,24 @@ Regras de uso:
   console, e vale reportar no chat.
 - São **estimativas**, não a taxa real de cada transação. A taxa real sai do
   EDI — isso é a skill `ragga-conciliacao`.
-- A taxa do iFood tem **dois estágios**, não é uma soma:
-  1. comissão (8%) + transação (2,60%) incidem sobre o **bruto**;
-  2. antecipação (1,59%) incide sobre o **líquido** que sobrou do estágio 1.
+- **A taxa do iFood é 25,064%, MEDIDA — não é a soma das taxas de tabela.**
+  Está em `IFOOD_DESCONTO_EFETIVO`. Veio de cruzar o relatório de pedidos com
+  o Cloudfy na semana 07–13/09:
 
-  `líquido = bruto × (1 − 0,1060) × (1 − 0,0159)`, o que dá **12,0215%**
-  efetivos. Somar as três daria 12,19% e desconta R$ 949,38 a mais numa
-  semana de R$ 563 mil — por isso a composição importa. Está em
-  `liquido_ifood()`.
+  | | |
+  |---|---:|
+  | base Cloudfy (`PAGAMENTO ONLINE`) | R$ 555.505,94 |
+  | recebido do iFood (já líquido) | R$ 416.274,00 |
+  | **desconto efetivo** | **25,064%** |
+
+  Os 12,02% de tabela (8% + 2,60% + 1,59%) erravam em **R$ 72.451,79** nessa
+  semana, porque ignoravam a taxa fixa por pedido, o incentivo promocional
+  bancado pela loja e os pedidos pagos em vale.
+
+  > **Amostra de uma semana só.** Recalibrar conforme os pares faturado ×
+  > recebido forem acumulando. A `IFOOD_ANTECIPACAO` (1,59%) continua separada
+  > porque é aplicada à parte sobre o líquido do relatório de pedidos — ela já
+  > está dentro dos 25,064%.
 - **Voucher: 6,90%**, em `TAXA_VOUCHER`. É a **maior taxa** que o Grupo tem
   hoje entre as operadoras de vale (Alelo, Pluxee, Ticket, Fepas) — escolha
   conservadora dela, para o previsto não sair otimista. A taxa cobre as três

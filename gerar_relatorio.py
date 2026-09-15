@@ -77,22 +77,34 @@ TAXAS = {
     'PIX MAQUININHA': 0.0000,  # sem taxa
 }
 
-# iFood em DOIS ESTAGIOS, e nao numa soma simples:
-#   1) comissao (8%) + transacao (2,60%) incidem sobre o BRUTO;
-#   2) antecipacao (1,59%) incide sobre o LIQUIDO que sobrou do estagio 1.
-# Taxa efetiva resultante: 12,0215%.
-IFOOD_SOBRE_BRUTO = 0.0800 + 0.0260
+# iFood: taxa EFETIVA MEDIDA sobre o faturado do Cloudfy (PAGAMENTO ONLINE).
+#
+# Nao e a soma das taxas de tabela. Medida na semana 07-13/09/2026, cruzando o
+# relatorio de pedidos do iFood com o Cloudfy:
+#     base Cloudfy (PAGAMENTO ONLINE)  R$ 555.505,94
+#     recebido do iFood (ja liquido)   R$ 416.274,00
+#     -> desconto efetivo              25,064%
+#
+# Os 12,02% de tabela (8% + 2,60% + 1,59%) erravam em R$ 72.451,79 nessa semana,
+# porque ignoravam a taxa fixa por pedido, o incentivo promocional bancado pela
+# loja e os pedidos pagos em vale.
+#
+# AMOSTRA DE UMA SEMANA SO. Recalibrar conforme os pares forem acumulando.
+IFOOD_DESCONTO_EFETIVO = 0.25064
+
+# Antecipacao, usada a parte: o relatorio de pedidos entrega o liquido ANTES
+# dela, entao ela incide sobre aquele total. Ja esta dentro do efetivo acima.
 IFOOD_ANTECIPACAO = 0.0159
 
 
 def liquido_ifood(bruto):
-    """Aplica os dois estagios da taxa do iFood."""
-    return bruto * (1 - IFOOD_SOBRE_BRUTO) * (1 - IFOOD_ANTECIPACAO)
+    """Estimativa do repasse a partir do faturado do Cloudfy."""
+    return bruto * (1 - IFOOD_DESCONTO_EFETIVO)
 
 
 def taxa_efetiva_ifood():
-    """Taxa efetiva equivalente dos dois estagios, para exibir."""
-    return 1 - (1 - IFOOD_SOBRE_BRUTO) * (1 - IFOOD_ANTECIPACAO)
+    """Desconto efetivo, para exibir."""
+    return IFOOD_DESCONTO_EFETIVO
 
 # Vale-refeicao (Alelo, Pluxee, Ticket, Fepas): 6,90%. E a MAIOR taxa que o
 # Grupo tem hoje entre as operadoras -- escolha conservadora, para o previsto
