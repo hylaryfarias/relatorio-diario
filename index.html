@@ -1122,9 +1122,11 @@
       t.push("Extrato ainda não carregado.");
     }
     t.push("");
-    t.push(lojas.length + " lojas · " + bateram.length + " fecharam · " + pend.length + " em aberto");
+    // sem extrato carregado nao ha diferenca para explicar: so o resumo
+    t.push(b.temB ? (lojas.length + " lojas · " + bateram.length + " fecharam · " + pend.length + " em aberto")
+                  : (lojas.length + " lojas com retirada para depósito"));
 
-    if(pend.length){
+    if(b.temB && pend.length){
       t.push("");
       t.push("⚠️ O QUE EXPLICA A DIFERENÇA");
       pend.forEach(function(it){
