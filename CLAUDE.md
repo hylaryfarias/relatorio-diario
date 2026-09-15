@@ -299,6 +299,46 @@ Regras de uso:
 - **Venda a prazo e B2B saem brutos** — são boleto, sem adquirente no meio.
 - `--bruto` desliga tudo e devolve a entrada prevista no bruto, para comparar.
 
+#### Validação contra o Sicredi (semana 08–14/09/2026)
+
+Ela exporta o `vendas_<loja>_<data>.zip` do portal — **17 lojas**, um `.xlsx` por
+loja, layout consolidado (crédito, débito, PIX e voucher no mesmo arquivo).
+Cabeçalho na **linha 13**, achar pela célula `Data da venda`. **`openpyxl` não
+abre** esses arquivos: usar `python-calamine`. Manter só `Aprovada` e
+`Autorizada`.
+
+Colunas que importam: `Produto`, `Bandeira`, `Status`, `Valor Bruto`,
+`Valor da taxa (MDR)`, `Valor líquido`.
+
+**As duas fontes batem — o Cloudfy é confiável:**
+
+| Forma | Cloudfy | Sicredi bruto | Cloudfy/Sicredi |
+|---|---:|---:|---:|
+| Crédito | R$ 306.163,49 | R$ 307.014,01 | 99,72% |
+| Débito | R$ 280.437,22 | R$ 279.031,72 | 100,50% |
+| PIX | R$ 140.256,22 | R$ 140.648,89 | 99,72% |
+| Voucher | R$ 47.064,03 | R$ 49.593,68 | 94,90% |
+| **TOTAL** | **R$ 773.920,96** | **R$ 776.288,30** | **99,70%** |
+
+**As taxas medidas confirmam a parametrização:**
+
+| Forma | MDR medido | Parametrizado | Leitura |
+|---|---:|---:|---|
+| Débito | **1,00%** | 0,99% | confirmado |
+| PIX | **0,00%** | 0% | confirmado |
+| Crédito | **1,11%** | 2,63% | 2,63% = MDR + antecipação |
+| Voucher | 0,05% | 6,90% | a taxa do vale **não está** neste arquivo |
+
+O crédito **não está errado**: o MDR puro é 1,11%, e os 2,63% embutem a
+antecipação automática (sem ela o crédito seria D+30). A antecipação implícita
+é **1,52%**, coerente com os **1,6424%** medidos na conciliação em 14/08.
+
+> **Falta o relatório de antecipação** para cravar a taxa da semana em vez de
+> inferir. É um dos 4 relatórios do portal e não veio neste zip.
+
+A taxa de voucher de 6,90% é cobrada **pela operadora do vale** (Alelo, Pluxee,
+Ticket), fora do Sicredi — por isso aparece como 0,05% aqui.
+
 Confere com o modelo dela: aquele print de 27/08 saiu 1,47% abaixo da soma
 bruta, que era justamente o desconto de taxa.
 
