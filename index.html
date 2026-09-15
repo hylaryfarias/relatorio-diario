@@ -78,6 +78,12 @@
   section{margin-bottom:26px}
   .shead{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;justify-content:space-between;margin-bottom:10px}
   .shead .esq{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .abas{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:11px}
+  .aba{font:inherit;font-size:12px;font-weight:600;letter-spacing:.01em;color:var(--ink-2);
+    background:var(--surface);border:1px solid var(--line-2);border-radius:999px;
+    padding:6px 14px;cursor:pointer;white-space:nowrap}
+  .aba:hover{border-color:var(--brand);color:var(--brand)}
+  .aba.ativa{background:var(--brand);border-color:var(--brand);color:#fff}
   .btn-semana{font:inherit;font-size:11.5px;font-weight:600;letter-spacing:.02em;color:var(--brand);
     background:transparent;border:1.5px solid var(--brand);border-radius:999px;padding:4px 12px;
     cursor:pointer;line-height:1.4}
@@ -149,6 +155,12 @@
     border:0;border-radius:7px;padding:7px 14px;cursor:pointer;flex:none}
   .sync .publicar:hover{background:var(--brand-dark)}
   .sync .publicar[disabled]{background:var(--ink-3);cursor:default}
+  #secTexto .selsem{font:inherit;font-size:12.5px;padding:7px 9px;border:1px solid var(--line-2);
+    border-radius:7px;background:var(--surface);color:var(--ink)}
+  .resumo{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:16px 18px;box-shadow:var(--shadow);font-family:var(--body);font-size:13.5px;
+    line-height:1.65;white-space:pre-wrap;word-break:break-word;color:var(--ink)}
+  body.leitura #secTexto{display:none!important}
   .chave{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;
     margin-bottom:18px;box-shadow:var(--shadow)}
   .chave h3{margin:0 0 6px;font-size:14.5px;font-weight:700;letter-spacing:-.01em}
@@ -261,9 +273,12 @@
     <div class="shead">
       <div class="esq">
         <h2>De:para por loja</h2>
-        <button class="btn-semana" id="btnSemana" type="button">+ Nova semana</button>
       </div>
       <span class="hint" id="perNota"></span>
+    </div>
+    <div class="abas" id="abas">
+      <span id="abasLista"></span>
+      <button class="btn-semana" id="btnSemana" type="button">+ Nova semana</button>
     </div>
     <div class="tbox">
       <div class="scroll"><table id="tabDepara">
@@ -275,6 +290,20 @@
       </table></div>
       <div class="empty" id="vazioDepara" hidden>Suba os dois arquivos para ver o de:para.</div>
     </div>
+  </section>
+
+  <section id="secTexto">
+    <div class="shead">
+      <div class="esq">
+        <h2>Texto do fechamento</h2>
+        <span class="hint">só você vê — quem abre o link do time não recebe este bloco</span>
+      </div>
+      <div class="esq">
+        <select id="selTexto" class="selsem" aria-label="Semana do texto"></select>
+        <button class="pick" type="button" id="btnCopiar">Copiar texto</button>
+      </div>
+    </div>
+    <pre class="resumo" id="txtResumo"></pre>
   </section>
 
   <section id="secVinc" hidden>
@@ -371,7 +400,7 @@
   }
 
   var estado = { sangria:[], extrato:[], vinculos:{}, notas:{}, semanas:[],
-               amostra:true, nomeA:"", nomeB:"" };
+               amostra:true, nomeA:"", nomeB:"", aba:"" };
   try{ var a = localStorage.getItem(LS_VINC); if(a) estado.vinculos = JSON.parse(a)||{}; }catch(e){}
   try{ var b = localStorage.getItem(LS_NOTAS); if(b){
     var n = JSON.parse(b)||{}; estado.notas = n.notas || n;
@@ -387,7 +416,7 @@
     try{
       localStorage.setItem(LS_DADOS, JSON.stringify({
         sangria:estado.sangria, extrato:estado.extrato, amostra:estado.amostra,
-        nomeA:estado.nomeA, nomeB:estado.nomeB, semanas:estado.semanas,
+        nomeA:estado.nomeA, nomeB:estado.nomeB, semanas:estado.semanas, aba:estado.aba,
         kw: $("kw").value
       }));
     }catch(e){ /* sem espaco ou armazenamento bloqueado: segue sem gravar */ }
@@ -402,6 +431,7 @@
       estado.sangria = d.sangria; estado.extrato = d.extrato || [];
       estado.amostra = !!d.amostra; estado.nomeA = d.nomeA||""; estado.nomeB = d.nomeB||"";
       estado.semanas = d.semanas || [];
+      estado.aba = d.aba || "";
       if(d.kw) $("kw").value = d.kw;
       if(estado.nomeA){
         $("fA").textContent = "\u2713 " + estado.nomeA + " · " + estado.sangria.length + " lançamentos";
@@ -657,11 +687,43 @@
     var blocos = [{ id:"", nome:"", lojas: agregar(sang, ext), atual:true }];
     estado.semanas.forEach(function(sem){ blocos.push({ id:sem.id, nome:sem.nome, lojas:sem.lojas, atual:false }); });
 
+    // cada semana e uma aba: mostra uma de cada vez, nunca empilhadas
+    if(estado.aba && !blocos.some(function(x){ return x.id === estado.aba; })) estado.aba = "";
+    var lista = $("abasLista");
+    lista.innerHTML = "";
+    blocos.forEach(function(bl){
+      var bt = document.createElement("button");
+      bt.type = "button";
+      bt.className = "aba" + (bl.id === estado.aba ? " ativa" : "");
+      bt.textContent = bl.atual ? ("Em aberto" + (estado.sangria.length ? " \u00b7 " + periodoCarregado() : ""))
+                                : (bl.nome || "semana");
+      bt.addEventListener("click", function(){
+        estado.aba = bl.id; escolhaTexto = bl.id; salvarDados(); render();
+      });
+      lista.appendChild(bt);
+    });
+
+    // semana guardada: os cartoes do topo mostram a aba aberta, nao o arquivo
+    var abaAtiva = blocos.filter(function(x){ return x.id === estado.aba; })[0];
+    if(abaAtiva && !abaAtiva.atual){
+      var aS = 0, aB = 0, nq = 0;
+      Object.keys(abaAtiva.lojas).forEach(function(k){
+        aS += abaAtiva.lojas[k].s; aB += abaAtiva.lojas[k].b; nq++;
+      });
+      var aD = aS - aB;
+      $("tS").textContent = brl(aS); $("nS").textContent = nq + " loja" + (nq>1?"s":"") + " \u00b7 semana fechada";
+      $("tB").textContent = brl(aB); $("nB").textContent = "semana fechada";
+      $("tD").textContent = brl(aD);
+      $("tD").style.color = Math.abs(aD) < 0.005 ? "var(--ok)" : (aD > 0 ? "var(--brand)" : "var(--warn)");
+      $("nD").textContent = Math.abs(aD) < 0.005 ? "fechou exato"
+                          : (aD > 0 ? "falta cair no extrato" : "extrato acima do Cloudfy");
+    }
+
     var tb = $("tabDepara").tBodies[0], tf = $("tabDepara").tFoot;
     tb.innerHTML = ""; tf.innerHTML = "";
     var nLinhas = 0, nLojas = {}, gS = 0, gB = 0;
 
-    blocos.forEach(function(bloco){
+    blocos.filter(function(x){ return x.id === estado.aba; }).forEach(function(bloco){
       var lojas = Object.keys(bloco.lojas).map(function(k){ return bloco.lojas[k]; })
         .sort(function(a,b){ return (b.s+b.b) - (a.s+a.b); });
       if(!lojas.length) return;
@@ -669,7 +731,7 @@
       lojas.forEach(function(l){ nLojas[l.k] = 1; });
 
       // cabecalho da semana: nome editavel, porque o repasse nem sempre fecha igual
-      if(!bloco.atual || estado.semanas.length){
+      if(!bloco.atual){
         var trs = document.createElement("tr");
         trs.className = "semana" + (bloco.atual ? " aberta" : "");
         if(bloco.atual){
@@ -699,21 +761,13 @@
       });
       gS += ss; gB += sb;
 
-      if(estado.semanas.length){
-        var tsub = document.createElement("tr");
-        tsub.className = "subtotal";
-        tsub.innerHTML = '<td>Subtotal</td><td class="num">'+brl(ss)+'</td>'+
-          '<td class="num">'+brl(sb)+'</td><td class="num">'+brl(ss-sb)+'</td><td></td><td></td>';
-        tb.appendChild(tsub);
-      }
     });
 
     $("vazioDepara").hidden = nLinhas > 0;
     if(nLinhas){
       var q = Object.keys(nLojas).length;
       var trf = document.createElement("tr");
-      trf.innerHTML = '<td>Total &middot; '+q+' loja'+(q>1?"s":"")+
-        (estado.semanas.length ? ' &middot; '+estado.semanas.length+' semana'+(estado.semanas.length>1?"s":"")+' + em aberto' : '')+'</td>'+
+      trf.innerHTML = '<td>Total &middot; '+q+' loja'+(q>1?"s":"")+'</td>'+
         '<td class="num">'+brl(gS)+'</td>'+
         '<td class="num">'+brl(gB)+'</td>'+
         '<td class="num">'+brl(gS-gB)+'</td><td></td><td></td>';
@@ -812,9 +866,10 @@
     }
     var id = "s" + Date.now();
     estado.semanas.push({ id:id, nome:periodoCarregado(), lojas:agregar(sang, ext) });
+    estado.aba = id; escolhaTexto = id;          // a semana nova ja abre na aba dela
     salvarDados(); render();
-    var novos = document.querySelectorAll("#tabDepara .rotulo-semana");
-    if(novos.length) novos[novos.length-1].focus();
+    var novo = document.querySelector("#tabDepara .rotulo-semana");
+    if(novo) novo.focus();
   });
 
   /* ------------------------------------------------------------------ *
@@ -1017,6 +1072,117 @@
       setTimeout(situacao, 6000);
     });
   }
+
+  /* ------------------------------------------------------------------ *
+   * Texto do fechamento: resumo da semana + as observacoes que ela
+   * escreveu na mao, para justificar a diferenca. So aparece para quem
+   * edita; quem le pelo link do time nao ve este bloco.
+   * ------------------------------------------------------------------ */
+  var escolhaTexto = "";
+
+  function blocosDeTexto(){
+    var sang = estado.sangria.filter(function(r){ return r.marcado; });
+    var ext  = estado.extrato.filter(function(r){ return r.marcado; });
+    var bs = [];
+    var abertas = agregar(sang, ext);
+    if(Object.keys(abertas).length)
+      bs.push({ id:"", nome:periodoCarregado(), lojas:abertas, temB:estado.extrato.length > 0 });
+    estado.semanas.forEach(function(sem){
+      bs.push({ id:sem.id, nome:sem.nome, lojas:sem.lojas, temB:true });
+    });
+    return bs;
+  }
+
+  function textoDoBloco(b){
+    var lojas = Object.keys(b.lojas).map(function(k){ return b.lojas[k]; })
+      .sort(function(a,b2){ return (b2.s+b2.b) - (a.s+a.b); });
+    var totS = 0, totB = 0;
+    lojas.forEach(function(l){ totS += l.s; totB += l.b; });
+    var dif = totS - totB;
+
+    var bateram = [], pend = [], obs = [];
+    lojas.forEach(function(l){
+      var n = nota(chaveNota(l.k, b.id));
+      var auto = apurar(l, b.temB);
+      var flag = n.flag || auto;
+      var item = { l:l, flag:flag, manual: !!n.flag && n.flag !== auto, obs:(n.obs||"").trim() };
+      if(flag === "bateu" || flag === "resolvido") bateram.push(item); else pend.push(item);
+      if(item.obs) obs.push(item);
+    });
+
+    var t = [];
+    t.push("🏦 DEPÓSITOS — " + (b.nome || "semana"));
+    t.push("");
+    t.push("Sangria para depósito (Cloudfy): " + brl(totS));
+    if(b.temB){
+      t.push("Creditado no extrato: " + brl(totB));
+      t.push("Diferença: " + brl(dif) + (Math.abs(dif) < 0.005 ? " ✅ fechou exato"
+              : dif > 0 ? " ⚠️ falta cair" : " ⚠️ caiu a mais"));
+    }else{
+      t.push("Extrato ainda não carregado.");
+    }
+    t.push("");
+    t.push(lojas.length + " lojas · " + bateram.length + " fecharam · " + pend.length + " em aberto");
+
+    if(pend.length){
+      t.push("");
+      t.push("⚠️ O QUE EXPLICA A DIFERENÇA");
+      pend.forEach(function(it){
+        var d = it.l.s - it.l.b;
+        t.push("• " + it.l.nome + " — " + it.flag + ": " + brl(d));
+        t.push("   Cloudfy " + brl(it.l.s) + " · extrato " + brl(it.l.b));
+        if(it.obs) t.push("   " + it.obs);
+      });
+    }
+
+    // observacoes em linha que ja fechou: entram como nota, nao como pendencia
+    var notasOk = obs.filter(function(it){ return pend.indexOf(it) < 0; });
+    if(notasOk.length){
+      t.push("");
+      t.push("📝 OBSERVAÇÕES");
+      notasOk.forEach(function(it){ t.push("• " + it.l.nome + ": " + it.obs); });
+    }
+
+    var manuais = lojas.length ? pend.concat(bateram).filter(function(it){ return it.manual; }) : [];
+    if(manuais.length){
+      t.push("");
+      t.push("Situação alterada na mão: " +
+        manuais.map(function(it){ return it.l.nome + " (" + it.flag + ")"; }).join(", ") + ".");
+    }
+    return t.join("\n");
+  }
+
+  function atualizarTexto(){
+    var bs = blocosDeTexto(), sel = $("selTexto");
+    if(!bs.length){
+      $("txtResumo").textContent = "Suba o relatório do Cloudfy para o texto sair.";
+      sel.innerHTML = ""; return;
+    }
+    var atual = escolhaTexto;
+    var existe = bs.some(function(b){ return b.id === atual; });
+    if(!existe) atual = bs[0].id;
+    escolhaTexto = atual;
+    sel.innerHTML = bs.map(function(b){
+      var rot = (b.id ? "" : "Em aberto · ") + (b.nome || "semana");
+      return '<option value="'+esc(b.id)+'"'+(b.id===atual?" selected":"")+'>'+esc(rot)+'</option>';
+    }).join("");
+    var bloco = bs.filter(function(b){ return b.id === atual; })[0];
+    $("txtResumo").textContent = textoDoBloco(bloco);
+  }
+
+  var _render = render;
+  render = function(){ _render(); atualizarTexto(); };
+
+  $("selTexto").addEventListener("change", function(){
+    escolhaTexto = $("selTexto").value; atualizarTexto();
+  });
+  $("btnCopiar").addEventListener("click", function(){
+    var txt = $("txtResumo").textContent;
+    if(navigator.clipboard) navigator.clipboard.writeText(txt);
+    var b = $("btnCopiar"), antes = b.textContent;
+    b.textContent = "Copiado";
+    setTimeout(function(){ b.textContent = antes; }, 2000);
+  });
 
   if(!restaurarDados()) carregarAmostra();
   render();
