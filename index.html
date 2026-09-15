@@ -82,7 +82,13 @@
     background:transparent;border:1.5px solid var(--brand);border-radius:999px;padding:4px 12px;
     cursor:pointer;line-height:1.4}
   .btn-semana:hover{background:var(--brand-soft)}
-  .btn-semana[aria-pressed="true"]{background:var(--brand);color:#fff}
+  .btn-semana:active{background:var(--brand);color:#fff}
+  .semana-cab{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .rotulo-fixo{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+  tr.semana.aberta td{background:var(--sunk)}
+  .remover{font:inherit;font-size:11px;font-weight:600;color:var(--ink-3);background:transparent;
+    border:1px solid var(--line-2);border-radius:6px;padding:3px 9px;cursor:pointer}
+  .remover:hover{color:var(--brand);border-color:var(--brand)}
   tr.semana td{background:var(--brand-soft);border-bottom:1px solid var(--line);padding-block:7px}
   .rotulo-semana{font:inherit;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
     color:var(--brand);background:transparent;border:1px solid transparent;border-radius:6px;
@@ -95,7 +101,7 @@
   .tbox{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
   .scroll{overflow-x:auto}
   table{border-collapse:collapse;width:100%;min-width:600px}
-  #tabDepara{min-width:1000px}
+  #tabDepara{min-width:1060px}
   th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
     text-align:left;padding:10px 14px;background:var(--sunk);border-bottom:1px solid var(--line);white-space:nowrap}
   td{padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
@@ -122,7 +128,8 @@
   .obs{font:inherit;font-family:inherit;font-size:13px;line-height:1.45;width:100%;display:block;
     padding:7px 10px;border:1px solid var(--line);border-radius:7px;background:var(--surface);
     color:var(--ink);resize:none;overflow:hidden;min-height:34px}
-  #tabDepara th:last-child,#tabDepara td:last-child{min-width:300px;width:34%}
+  #tabDepara th:first-child,#tabDepara td:first-child{min-width:200px}
+  #tabDepara th:last-child,#tabDepara td:last-child{min-width:280px;width:30%}
   .obs:focus{border-color:var(--brand)}
   .obs::placeholder{color:var(--ink-3)}
 
@@ -197,7 +204,7 @@
     <div class="shead">
       <div class="esq">
         <h2>De:para por loja</h2>
-        <button class="btn-semana" id="btnSemana" type="button" aria-pressed="false">Por semana</button>
+        <button class="btn-semana" id="btnSemana" type="button">+ Nova semana</button>
       </div>
       <span class="hint" id="perNota"></span>
     </div>
@@ -306,16 +313,16 @@
     return RE_DEP.test(m) && !RE_SUP.test(m);
   }
 
-  var estado = { sangria:[], extrato:[], vinculos:{}, notas:{}, rotulos:{},
-               amostra:true, porSemana:false, nomeA:"", nomeB:"" };
+  var estado = { sangria:[], extrato:[], vinculos:{}, notas:{}, semanas:[],
+               amostra:true, nomeA:"", nomeB:"" };
   try{ var a = localStorage.getItem(LS_VINC); if(a) estado.vinculos = JSON.parse(a)||{}; }catch(e){}
   try{ var b = localStorage.getItem(LS_NOTAS); if(b){
-    var n = JSON.parse(b)||{}; estado.notas = n.notas || n; estado.rotulos = n.rotulos || {};
+    var n = JSON.parse(b)||{}; estado.notas = n.notas || n;
   } }catch(e){}
 
   function salvar(){
     try{ localStorage.setItem(LS_VINC, JSON.stringify(estado.vinculos)); }catch(e){}
-    try{ localStorage.setItem(LS_NOTAS, JSON.stringify({notas:estado.notas, rotulos:estado.rotulos})); }catch(e){}
+    try{ localStorage.setItem(LS_NOTAS, JSON.stringify({notas:estado.notas})); }catch(e){}
   }
 
   // os arquivos ficam gravados: atualizacao do painel nao apaga o que ela ja subiu
@@ -323,7 +330,7 @@
     try{
       localStorage.setItem(LS_DADOS, JSON.stringify({
         sangria:estado.sangria, extrato:estado.extrato, amostra:estado.amostra,
-        nomeA:estado.nomeA, nomeB:estado.nomeB, porSemana:estado.porSemana,
+        nomeA:estado.nomeA, nomeB:estado.nomeB, semanas:estado.semanas,
         kw: $("kw").value
       }));
     }catch(e){ /* sem espaco ou armazenamento bloqueado: segue sem gravar */ }
@@ -337,7 +344,7 @@
       if(!d || !d.sangria) return false;
       estado.sangria = d.sangria; estado.extrato = d.extrato || [];
       estado.amostra = !!d.amostra; estado.nomeA = d.nomeA||""; estado.nomeB = d.nomeB||"";
-      estado.porSemana = !!d.porSemana;
+      estado.semanas = d.semanas || [];
       if(d.kw) $("kw").value = d.kw;
       if(estado.nomeA){
         $("fA").textContent = estado.nomeA + " · " + estado.sangria.length + " lançamentos";
@@ -474,22 +481,7 @@
     });
   }
 
-  // o repasse fecha de segunda a domingo, igual ao ciclo das lojas
-  function semanaDe(dstr){
-    var p = String(dstr||"").split("/");
-    if(p.length < 3) return null;
-    var d = new Date(+p[2], +p[1]-1, +p[0]);
-    if(isNaN(d.getTime())) return null;
-    var dow = (d.getDay() + 6) % 7;
-    var ini = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow);
-    var fim = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate() + 6);
-    var dd = function(x){
-      return String(x.getDate()).padStart(2,"0")+"/"+String(x.getMonth()+1).padStart(2,"0");
-    };
-    var id = ini.getFullYear()+"-"+String(ini.getMonth()+1).padStart(2,"0")+"-"+String(ini.getDate()).padStart(2,"0");
-    return { id:id, rotulo:"Semana de "+dd(ini)+" a "+dd(fim) };
-  }
-  // com a quebra ligada, cada semana tem a sua flag e a sua observacao
+  // cada semana guarda a sua flag e a sua observacao; o bloco em aberto usa a chave da loja
   function chaveNota(k, semanaId){ return semanaId ? semanaId+"::"+k : k; }
 
   function chaveExtrato(loja){
@@ -514,6 +506,36 @@
   function ajustarObs(){
     var cs = document.querySelectorAll("#tabDepara .obs");
     for(var i=0;i<cs.length;i++) alturaObs(cs[i]);
+  }
+
+  function agregar(sangList, extList){
+    var lojas = {};
+    sangList.forEach(function(r){
+      var k = chaveLoja(r.loja);
+      if(!lojas[k]) lojas[k] = {k:k, nome:r.loja, s:0, b:0};
+      lojas[k].s += r.valor;
+      if(r.loja) lojas[k].nome = r.loja;
+    });
+    extList.forEach(function(r){
+      var k = chaveExtrato(r.loja);
+      if(!lojas[k]) lojas[k] = {k:k, nome:(r.loja||k), s:0, b:0};
+      lojas[k].b += r.valor;
+    });
+    return lojas;
+  }
+
+  // sugere o nome da semana pelo intervalo do relatorio do Cloudfy
+  function periodoCarregado(){
+    var ds = [];
+    estado.sangria.forEach(function(r){
+      var p = String(r.data||"").split("/");
+      if(p.length === 3) ds.push(new Date(+p[2], +p[1]-1, +p[0]));
+    });
+    if(!ds.length) return "Nova semana";
+    ds.sort(function(a,b){ return a-b; });
+    var f = function(x){ return String(x.getDate()).padStart(2,"0")+"/"+String(x.getMonth()+1).padStart(2,"0"); };
+    var ini = f(ds[0]), fim = f(ds[ds.length-1]);
+    return ini === fim ? ini : ini+" a "+fim;
   }
 
   // uma linha da tabela: valores, a flag que ela pode trocar e a observacao
@@ -574,53 +596,57 @@
       ? (Math.abs(totS-totB) < 0.005 ? "fechou exato" : (totS > totB ? "falta cair no extrato" : "extrato acima do Cloudfy"))
       : "Cloudfy menos extrato";
 
-    // agrupa por loja; com a quebra ligada, agrupa tambem por semana
-    var blocos = {};
-    function acumula(r, campo, chave){
-      var sem = estado.porSemana ? semanaDe(r.data) : null;
-      var sid = sem ? sem.id : "";
-      if(!blocos[sid]) blocos[sid] = { id:sid, rotulo: sem ? sem.rotulo : "", lojas:{} };
-      var lojas = blocos[sid].lojas;
-      if(!lojas[chave]) lojas[chave] = { k:chave, nome:(r.loja||chave), s:0, b:0 };
-      lojas[chave][campo] += r.valor;
-      if(campo === "s" && r.loja) lojas[chave].nome = r.loja;
-    }
-    sang.forEach(function(r){ acumula(r, "s", chaveLoja(r.loja)); });
-    ext.forEach(function(r){ acumula(r, "b", chaveExtrato(r.loja)); });
+    // o bloco "em aberto" e o que esta carregado agora; abaixo dele, as semanas guardadas
+    var blocos = [{ id:"", nome:"", lojas: agregar(sang, ext), atual:true }];
+    estado.semanas.forEach(function(sem){ blocos.push({ id:sem.id, nome:sem.nome, lojas:sem.lojas, atual:false }); });
 
     var tb = $("tabDepara").tBodies[0], tf = $("tabDepara").tFoot;
     tb.innerHTML = ""; tf.innerHTML = "";
-    var ordem = Object.keys(blocos).sort(), nLinhas = 0, nLojas = {};
+    var nLinhas = 0, nLojas = {}, gS = 0, gB = 0;
 
-    ordem.forEach(function(sid){
-      var bloco = blocos[sid];
+    blocos.forEach(function(bloco){
       var lojas = Object.keys(bloco.lojas).map(function(k){ return bloco.lojas[k]; })
         .sort(function(a,b){ return (b.s+b.b) - (a.s+a.b); });
       if(!lojas.length) return;
       nLinhas += lojas.length;
       lojas.forEach(function(l){ nLojas[l.k] = 1; });
 
-      if(estado.porSemana && bloco.rotulo){
+      // cabecalho da semana: nome editavel, porque o repasse nem sempre fecha igual
+      if(!bloco.atual || estado.semanas.length){
         var trs = document.createElement("tr");
-        trs.className = "semana";
-        var rot = (estado.rotulos[sid] != null) ? estado.rotulos[sid] : bloco.rotulo;
-        trs.innerHTML = '<td colspan="6"><input class="rotulo-semana" type="text" value="'+esc(rot)+
-          '" aria-label="Nome do repasse"></td>';
-        var inp = trs.querySelector("input");
-        inp.addEventListener("input", function(){ estado.rotulos[sid] = inp.value; salvar(); });
+        trs.className = "semana" + (bloco.atual ? " aberta" : "");
+        if(bloco.atual){
+          trs.innerHTML = '<td colspan="6"><span class="rotulo-fixo">Em aberto &middot; arquivos carregados agora</span></td>';
+        }else{
+          trs.innerHTML = '<td colspan="6"><span class="semana-cab">'+
+            '<input class="rotulo-semana" type="text" value="'+esc(bloco.nome)+'" aria-label="Nome da semana">'+
+            '<button class="remover" type="button" title="Remover esta semana">Remover</button></span></td>';
+          var inp = trs.querySelector("input");
+          inp.addEventListener("input", function(){
+            for(var i=0;i<estado.semanas.length;i++)
+              if(estado.semanas[i].id === bloco.id) estado.semanas[i].nome = inp.value;
+            salvarDados();
+          });
+          trs.querySelector(".remover").addEventListener("click", function(){
+            estado.semanas = estado.semanas.filter(function(s){ return s.id !== bloco.id; });
+            salvarDados(); render();
+          });
+        }
         tb.appendChild(trs);
       }
+
       var ss = 0, sb = 0;
       lojas.forEach(function(l){
         ss += l.s; sb += l.b;
-        tb.appendChild(linhaLoja(l, temB, sid));
+        tb.appendChild(linhaLoja(l, bloco.atual ? temB : true, bloco.id));
       });
-      if(estado.porSemana){
+      gS += ss; gB += sb;
+
+      if(estado.semanas.length){
         var tsub = document.createElement("tr");
         tsub.className = "subtotal";
-        tsub.innerHTML = '<td>Subtotal da semana</td><td class="num">'+brl(ss)+'</td>'+
-          '<td class="num">'+(temB?brl(sb):'&mdash;')+'</td>'+
-          '<td class="num">'+(temB?brl(ss-sb):'&mdash;')+'</td><td></td><td></td>';
+        tsub.innerHTML = '<td>Subtotal</td><td class="num">'+brl(ss)+'</td>'+
+          '<td class="num">'+brl(sb)+'</td><td class="num">'+brl(ss-sb)+'</td><td></td><td></td>';
         tb.appendChild(tsub);
       }
     });
@@ -629,10 +655,11 @@
     if(nLinhas){
       var q = Object.keys(nLojas).length;
       var trf = document.createElement("tr");
-      trf.innerHTML = '<td>Total &middot; '+q+' loja'+(q>1?"s":"")+'</td>'+
-        '<td class="num">'+brl(totS)+'</td>'+
-        '<td class="num">'+(temB?brl(totB):'&mdash;')+'</td>'+
-        '<td class="num">'+(temB?brl(totS-totB):'&mdash;')+'</td><td></td><td></td>';
+      trf.innerHTML = '<td>Total &middot; '+q+' loja'+(q>1?"s":"")+
+        (estado.semanas.length ? ' &middot; '+estado.semanas.length+' semana'+(estado.semanas.length>1?"s":"")+' + em aberto' : '')+'</td>'+
+        '<td class="num">'+brl(gS)+'</td>'+
+        '<td class="num">'+brl(gB)+'</td>'+
+        '<td class="num">'+brl(gS-gB)+'</td><td></td><td></td>';
       tf.appendChild(trf);
     }
 
@@ -718,16 +745,22 @@
     salvarDados(); render();
   });
 
+  // fecha o que esta carregado numa semana nova, que fica guardada
   $("btnSemana").addEventListener("click", function(){
-    estado.porSemana = !estado.porSemana;
-    $("btnSemana").setAttribute("aria-pressed", estado.porSemana ? "true" : "false");
-    $("btnSemana").textContent = estado.porSemana ? "Consolidado" : "Por semana";
+    var sang = estado.sangria.filter(function(r){ return r.marcado; });
+    var ext  = estado.extrato.filter(function(r){ return r.marcado; });
+    if(!sang.length && !ext.length){
+      alert("Não há nada marcado para virar semana. Suba o relatório do Cloudfy e o extrato primeiro.");
+      return;
+    }
+    var id = "s" + Date.now();
+    estado.semanas.push({ id:id, nome:periodoCarregado(), lojas:agregar(sang, ext) });
     salvarDados(); render();
+    var novos = document.querySelectorAll("#tabDepara .rotulo-semana");
+    if(novos.length) novos[novos.length-1].focus();
   });
 
   if(!restaurarDados()) carregarAmostra();
-  $("btnSemana").setAttribute("aria-pressed", estado.porSemana ? "true" : "false");
-  $("btnSemana").textContent = estado.porSemana ? "Consolidado" : "Por semana";
   render();
   $("detA").open = true;
 })();
