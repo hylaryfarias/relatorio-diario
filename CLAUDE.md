@@ -430,6 +430,43 @@ o total do texto (R$ 128.115,36). Não é para caçar essa diferença.
 A trava do `--total-informado` continua valendo para os envios de verdade: se
 a soma não fechar com o total que ela passar, avisar antes de mandar.
 
+# Retiradas para depósito (sangria)
+
+Ela exporta o `Relatriodesangriassuprimentos_*.xlsx` do PDV quando precisa
+casar o dinheiro depositado com o que a loja sangrou. Abre com `openpyxl`,
+aba `Planilha`, cabeçalho na linha 1:
+`Filial · Caixa · Data · Valor · Motivo/Descrição · Usuário · Usuário autorizador`.
+
+**Ela quer SÓ o consolidado por loja.** Não mandar o detalhe lançamento a
+lançamento nem a quebra por dia, a não ser que peça. Formato:
+
+| Loja | Retiradas | Valor | % |
+
+## Como classificar
+
+O campo é texto livre e vem escrito de vários jeitos, com erro de digitação.
+A regra que funciona:
+
+1. **Entra**: a descrição contém `depósito`/`deposito` **e não** contém
+   suprimento. Aparece como `RETIRADA DEPOSITO`, `RETIRADA DEPOSITO R$450,00.`,
+   `Retirada deposito no valor de R$900,00. Autorizado pelo gerente Gabriel.`
+2. **Entra também**: a descrição é exatamente `RETIRADA`, sem destino — ela
+   decidiu em 15/09 que esses contam como depósito.
+3. **Fica de fora** todo o resto.
+
+> **A armadilha: "retirada" sozinha quase nunca é depósito.** A maioria são
+> `RETIRADA PARA SUPRIMENTO DO CAIXA`, dinheiro passando de um caixa para
+> outro, que nunca sai da loja. Filtrar por "retirada" na semana 07–14/09
+> contaria R$ 15.240,00 de transferência interna como depósito.
+
+Grafias de suprimento já vistas, todas no mesmo relatório: `SUPRIMENTO`,
+`SUPLIMENTO`, `SUPPRIMENTO`, `SUUPRIMENTO`, `suplimento`. O casamento por
+`supr|supl|suppr|suup` pega todas.
+
+Outras categorias que aparecem e ficam de fora: pagamento a freelancer,
+compra/despesa (gelo, arroz, café, pit stop), reembolso e estorno a cliente,
+pagamento de entregador por fora quando a TAON está sem limite.
+
 ## Conciliação
 
 Pergunta sobre **por que** o dinheiro entra assim (taxas, prazos, EDI, vales,
