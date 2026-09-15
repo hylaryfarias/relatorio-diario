@@ -94,9 +94,10 @@ def taxa_efetiva_ifood():
     """Taxa efetiva equivalente dos dois estagios, para exibir."""
     return 1 - (1 - IFOOD_SOBRE_BRUTO) * (1 - IFOOD_ANTECIPACAO)
 
-# Voucher (Alelo, Pluxee, Ticket, Fepas): 5% FICTICIO, so para ter uma base.
-# Nao e taxa negociada -- trocar quando a real aparecer.
-TAXA_VOUCHER = 0.05
+# Vale-refeicao (Alelo, Pluxee, Ticket, Fepas): 6,90%. E a MAIOR taxa que o
+# Grupo tem hoje entre as operadoras -- escolha conservadora, para o previsto
+# nao sair otimista. Se a media real por operadora for levantada, trocar aqui.
+TAXA_VOUCHER = 0.069
 
 # Venda a prazo e B2B entram BRUTOS: sao boleto, sem adquirente no meio.
 

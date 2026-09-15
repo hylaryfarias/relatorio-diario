@@ -262,7 +262,7 @@ lá:
 | Crédito (`TEF - CREDITO`) | 2,63% |
 | Débito (`TEF - DEBITO`) | 0,99% |
 | Pix maquininha | 0% |
-| Voucher | **5% fictício** — ver abaixo |
+| Voucher | **6,90%** — a maior das operadoras |
 | iFood (`PAGAMENTO ONLINE`) | **12,02% efetivos** — só na estimativa por `--ifood`; o valor de `--ifood-valor` já vem líquido |
 
 Regras de uso:
@@ -280,15 +280,12 @@ Regras de uso:
   efetivos. Somar as três daria 12,19% e desconta R$ 949,38 a mais numa
   semana de R$ 563 mil — por isso a composição importa. Está em
   `liquido_ifood()`.
-- **A taxa do voucher (5%) é FICTÍCIA.** Ela não tem a taxa real e pediu os 5%
-  só para ter uma base. Está em `TAXA_VOUCHER`. Consequências:
-  - **não tratar esse número como taxa negociada** em nenhuma análise;
-  - **não perguntar a taxa real a cada envio** — ela sabe que é estimativa;
-  - quando a real aparecer (contrato de Alelo, Pluxee, Ticket, Fepas, ou o
-    EDI), é trocar uma linha.
-
-  Como o voucher é parcela pequena (uns R$ 10 mil num previsto de R$ 517 mil),
-  o erro dessa estimativa não move o total de forma relevante.
+- **Voucher: 6,90%**, em `TAXA_VOUCHER`. É a **maior taxa** que o Grupo tem
+  hoje entre as operadoras de vale (Alelo, Pluxee, Ticket, Fepas) — escolha
+  conservadora dela, para o previsto não sair otimista. A taxa cobre as três
+  formas de `FORMAS_VOUCHER`: `VOUCHER`, `TEF - VOUCHER` e `TEF - TICKET`.
+  Substituiu os 5% fictícios que valiam antes. Se um dia a média real por
+  operadora for levantada, é trocar uma linha — **não perguntar a cada envio**.
 - **Venda a prazo e B2B saem brutos** — são boleto, sem adquirente no meio.
 - `--bruto` desliga tudo e devolve a entrada prevista no bruto, para comparar.
 
