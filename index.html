@@ -695,6 +695,7 @@
       var bt = document.createElement("button");
       bt.type = "button";
       bt.className = "aba" + (bl.id === estado.aba ? " ativa" : "");
+      bt.setAttribute("data-id", bl.id);
       bt.textContent = bl.atual ? (estado.sangria.length ? periodoCarregado() : "Em aberto")
                                 : (bl.nome || "semana");
       bt.addEventListener("click", function(){
@@ -744,6 +745,13 @@
           inp.addEventListener("input", function(){
             for(var i=0;i<estado.semanas.length;i++)
               if(estado.semanas[i].id === bloco.id) estado.semanas[i].nome = inp.value;
+            // a aba acompanha o nome enquanto ela digita, sem refazer a tabela
+            // (um render aqui tiraria o cursor do campo)
+            var abas = $("abasLista").children;
+            for(var j=0;j<abas.length;j++)
+              if(abas[j].getAttribute("data-id") === bloco.id)
+                abas[j].textContent = inp.value || "semana";
+            atualizarTexto();
             salvarDados();
           });
           trs.querySelector(".remover").addEventListener("click", function(){
