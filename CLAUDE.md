@@ -74,11 +74,45 @@ Mudança de agrupamento se faz lá, não na mão na resposta.
 | **Repasse do iFood** | **valor informado na mão** em `--ifood-valor`, já líquido, por entidade (Grupo Ragga, Dell Iris). Cai na quarta, referente à semana segunda a domingo anterior. |
 | **Vendas a prazo** | `vendas_a_prazo.csv`, só os títulos cujo `VENCIMENTO` é **exatamente** a data prevista. Fora dessa data a parcela não entra. |
 | **B2B iKI** | ainda **sem base**. Entra só quando vier `--b2b`. |
+| **Depois da meia-noite** | o que foi vendido depois do corte **sai** da previsão de amanhã e fica gravado em `pos_meia_noite.csv` para entrar sozinho na do dia seguinte. Valor informado em `--pos-meia-noite`. |
 
 `PAGAMENTO ONLINE` **é o iFood** e fica fora da parcela diária de cartão + Pix
 porque tem repasse próprio, semanal. Isso confere com o modelo dela: no print
 de 27/08 o previsto (R$ 101.481,14) bate com crédito + débito + Pix
 (R$ 102.999,18) e não com nada que inclua o pagamento online.
+
+### O corte da meia-noite
+
+O relatório do Cloudfy **fecha o dia às 02h**: o que foi vendido depois da
+meia-noite entra no dia anterior. Para a **venda** isso está certo — é a mesma
+noite de operação, e o quadrinho tem que sair assim. Para o **recebimento**
+não: a adquirente carimba a transação pela data do calendário, então o cartão
+passado 00h30 liquida junto com o dia seguinte.
+
+Então esse pedaço **sai da previsão de amanhã e entra na de depois de amanhã**:
+
+```bash
+python3 gerar_relatorio.py 15-09.pdf --mes-anterior 15-08.pdf \
+    --pos-meia-noite "credito=1200" --pos-meia-noite "debito=900" \
+    --pos-meia-noite "pix=400" --saida saida
+```
+
+- `--pos-meia-noite` aceita `[FORMA=]VALOR` e pode repetir. As formas são
+  `credito`, `debito` e `pix` (também aceita o nome completo). **Sem forma, o
+  valor é rateado** entre as três na proporção do próprio dia.
+- O valor é subtraído da parcela de cartão + Pix **e gravado** em
+  `pos_meia_noite.csv` (`DATA DE ENTRADA;FORMA;VALOR;ORIGEM;CORTE`), com data
+  de entrada = dia previsto + 1.
+- No dia seguinte o script **lê esse arquivo sozinho** e a parcela entra como
+  linha própria, já líquida de taxa, no console e no texto.
+- Rodar o mesmo dia duas vezes **não dobra**: as linhas daquela origem são
+  regravadas.
+- `--corte HH:MM` só muda o rótulo (padrão `00:00`); `--sem-arrasto` ignora o
+  que está guardado; `--arrasto outro.csv` aponta para outro arquivo.
+
+> **O PDF de vendas por forma de pagamento não tem hora.** O valor depois do
+> corte tem que vir de fora — de um relatório do Cloudfy com hora ou do que ela
+> apurar. Sem `--pos-meia-noite` nada é separado e o comportamento é o de antes.
 
 ### A regra do iFood
 
@@ -352,9 +386,25 @@ Tabela de recebíveis B2B a prazo (BGs, Casaria etc.) que ela manda de vez em
 quando. Formato: `RAZAO SOCIAL;CNPJ;VALOR;VENCIMENTO;ORIGEM DO CONSUMO`, com
 valor em padrão BR e vencimento `dd/mm/aaaa`.
 
-Estado atual: 22 títulos, todos vencendo **14/09/2026**, somando
-**R$ 38.482,02** (confere com o total da planilha dela). Quando ela mandar
-títulos novos, acrescentar linhas no arquivo e commitar.
+Estado atual: **26 títulos, R$ 53.102,69**, assim distribuídos:
+
+| Vencimento | Títulos | Valor |
+|---|---:|---:|
+| 14/09/2026 | 22 | R$ 38.482,02 |
+| 20/09/2026 | 3 | R$ 12.748,67 |
+| 28/09/2026 | 1 | R$ 1.872,00 |
+
+Quando ela mandar títulos novos, acrescentar linhas no arquivo e commitar.
+
+**O que entra e o que não entra** quando ela manda a planilha do B2B:
+
+- entra o que está **A RECEBER com data futura** — é caixa que ainda vai cair;
+- **não entra permuta** (HELP DESK, ALISON CECOTTI): é troca, não é dinheiro;
+- **não entra linha zerada** (consumo de colaboradores antes do fechamento,
+  cliente sem consumo no mês);
+- **não entra o que já está RECEBIDO**, e o que está **VENCIDO ou A RECEBER com
+  data passada fica de fora** até ela dar uma data nova — a parcela só entra no
+  dia exato do vencimento, então uma data velha nunca mais apareceria.
 
 Cuidado para **não contar em dobro**: a venda a prazo já entrou na venda bruta
 no dia da venda; o que entra aqui é o **caixa** no dia do vencimento. São

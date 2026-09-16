@@ -43,6 +43,32 @@ GRUPOS = OrderedDict([
 # PAGAMENTO ONLINE fica fora daqui porque tem repasse proprio -- ver IFOOD.
 CARTAO_E_PIX = ['TEF - CREDITO', 'TEF - DEBITO', 'PIX MAQUININHA']
 
+# ---------------------------------------------------------------------------
+# Corte da meia-noite.
+#
+# O relatorio do Cloudfy fecha o dia as 02h: o que foi vendido depois da
+# meia-noite entra no dia anterior. Para a VENDA isso esta certo -- e a mesma
+# noite de operacao. Para o RECEBIMENTO nao: a adquirente carimba a transacao
+# pela data do calendario, entao o cartao passado 00h30 liquida junto com o dia
+# seguinte. Esse pedaco nao entra na previsao de amanha; entra na de depois.
+#
+# Entao o valor depois do corte sai da previsao do dia e fica GRAVADO em
+# pos_meia_noite.csv, para entrar sozinho na previsao do dia seguinte.
+#
+# O PDF de vendas por forma de pagamento NAO tem hora: o valor depois do corte
+# vem informado em --pos-meia-noite.
+HORA_CORTE = '00:00'
+POS_MEIA_NOITE_PADRAO = 'pos_meia_noite.csv'
+
+# apelidos aceitos em --pos-meia-noite, para nao ter que digitar o nome exato
+APELIDOS_FORMA = {
+    'credito': 'TEF - CREDITO', 'credito ': 'TEF - CREDITO',
+    'cartao credito': 'TEF - CREDITO', 'tef - credito': 'TEF - CREDITO',
+    'debito': 'TEF - DEBITO', 'cartao debito': 'TEF - DEBITO',
+    'tef - debito': 'TEF - DEBITO',
+    'pix': 'PIX MAQUININHA', 'pix maquininha': 'PIX MAQUININHA',
+}
+
 # PAGAMENTO ONLINE e o iFood. O repasse cai na QUARTA, referente a semana
 # fechada de segunda a domingo anterior (quarta 09/09 -> 31/08 a 06/09). Entao
 # so entra na previsao quando o dia previsto e uma quarta-feira.
@@ -367,12 +393,101 @@ def renderizar_png(html, destino):
     return True
 
 
-PARCELAS = ('vendas', 'voucher', 'ifood', 'a_prazo', 'b2b')
+PARCELAS = ('vendas', 'pos_meia_noite', 'voucher', 'ifood', 'a_prazo', 'b2b')
+
+
+def normaliza_forma(texto):
+    """Aceita 'credito', 'Cartao Debito', 'PIX' e devolve o nome ja agrupado."""
+    limpo = ' '.join(texto.strip().lower().split())
+    limpo = (limpo.replace('é', 'e').replace('É', 'e')
+                  .replace('ó', 'o').replace('í', 'i').replace('á', 'a'))
+    if limpo in APELIDOS_FORMA:
+        return APELIDOS_FORMA[limpo]
+    for forma in CARTAO_E_PIX:
+        if limpo == forma.lower():
+            return forma
+    raise SystemExit(f'ERRO: forma "{texto}" nao vale em --pos-meia-noite. '
+                     f'Use credito, debito ou pix.')
+
+
+def ler_pos_meia_noite_args(entradas, agrupado):
+    """--pos-meia-noite [FORMA=]VALOR -> {forma: valor}.
+
+    Sem forma, o valor e rateado entre credito, debito e pix na proporcao do
+    proprio dia -- e o melhor palpite quando so se sabe o total do periodo.
+    """
+    porforma, solto = {}, 0.0
+    for bruto in entradas:
+        rotulo, _, valor = bruto.rpartition('=')
+        try:
+            numero = to_float(valor)
+        except Exception:
+            raise SystemExit(f'ERRO: nao entendi o valor em --pos-meia-noite {bruto!r}.')
+        if rotulo.strip():
+            forma = normaliza_forma(rotulo)
+            porforma[forma] = porforma.get(forma, 0.0) + numero
+        else:
+            solto += numero
+
+    if solto:
+        base = sum(agrupado.get(f, 0.0) for f in CARTAO_E_PIX)
+        if base <= 0:
+            raise SystemExit('ERRO: sem cartao e pix no dia para ratear o '
+                             '--pos-meia-noite sem forma.')
+        for forma in CARTAO_E_PIX:
+            peso = agrupado.get(forma, 0.0) / base
+            if peso:
+                porforma[forma] = porforma.get(forma, 0.0) + solto * peso
+
+    for forma, valor in porforma.items():
+        if valor > agrupado.get(forma, 0.0) + 0.005:
+            raise SystemExit(f'ERRO: --pos-meia-noite de {forma} (R$ {brl(valor)}) '
+                             f'e maior que a venda do dia (R$ {brl(agrupado.get(forma, 0.0))}).')
+    return porforma
+
+
+def ler_arrasto(caminho):
+    """Le o arquivo de vendas depois do corte que ficaram para o dia seguinte."""
+    if not os.path.exists(caminho):
+        return []
+    registros = []
+    with open(caminho, encoding='utf-8') as arquivo:
+        for numero, linha in enumerate(arquivo, 1):
+            linha = linha.strip()
+            if not linha or linha.upper().startswith('DATA DE ENTRADA'):
+                continue
+            partes = linha.split(';')
+            if len(partes) < 4:
+                print(f'AVISO: linha {numero} de {caminho} ignorada: {linha!r}',
+                      file=sys.stderr)
+                continue
+            registros.append({'entrada': partes[0].strip(), 'forma': partes[1].strip(),
+                              'valor': to_float(partes[2]), 'origem': partes[3].strip(),
+                              'corte': partes[4].strip() if len(partes) > 4 else HORA_CORTE})
+    return registros
+
+
+def gravar_arrasto(caminho, registros, origem, porforma, entrada_em, corte):
+    """Regrava o arquivo trocando as linhas desta origem -- rodar duas vezes
+    o mesmo dia nao pode dobrar o valor."""
+    mantidos = [r for r in registros if r['origem'] != origem]
+    novos = [{'entrada': entrada_em, 'forma': forma, 'valor': valor,
+              'origem': origem, 'corte': corte}
+             for forma, valor in porforma.items() if valor]
+    todos = mantidos + novos
+    todos.sort(key=lambda r: (datetime.datetime.strptime(r['entrada'], '%d/%m/%Y'),
+                              r['forma']))
+    with open(caminho, 'w', encoding='utf-8') as arquivo:
+        arquivo.write('DATA DE ENTRADA;FORMA;VALOR;ORIGEM;CORTE\n')
+        for r in todos:
+            arquivo.write(f'{r["entrada"]};{r["forma"]};{brl(r["valor"])};'
+                          f'{r["origem"]};{r["corte"]}\n')
+    return novos
 
 
 def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
                      ifood=None, b2b=None, override=None, liquido=True,
-                     ifood_manual=None, ifood_entra=True):
+                     ifood_manual=None, ifood_entra=True, arrasto=None):
     """Monta as parcelas da entrada prevista.
 
     vendas   -> credito + debito + pix do periodo atual (venda bruta)
@@ -400,9 +515,19 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
     else:
         taxa_ifood, ifood_bruto = (taxa_efetiva_ifood() if liquido else 0.0), ifood
         ifood_valor = None if ifood is None else (liquido_ifood(ifood) if liquido else ifood)
+    # arrasto: vendas depois do corte da meia-noite do dia anterior, que
+    # liquidam junto com hoje
+    detalhe_arrasto = []
+    for forma, bruto in (arrasto or []):
+        taxa = TAXAS.get(forma, 0.0) if liquido else 0.0
+        detalhe_arrasto.append((forma, bruto, taxa, bruto * (1 - taxa)))
+
     entrada = {
         'vendas': sum(item[3] for item in detalhe),
         'detalhe_vendas': detalhe,
+        'pos_meia_noite': (sum(item[3] for item in detalhe_arrasto)
+                           if detalhe_arrasto else None),
+        'detalhe_arrasto': detalhe_arrasto,
         'ifood_bruto': ifood_bruto,
         'taxa_ifood': taxa_ifood,
         'ifood_manual': ifood_manual or [],
@@ -449,6 +574,12 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
 
     partes.append(f'· R$ {brl(entrada["vendas"])} são referentes às vendas '
                   f'{referencia} (Crédito, Débito e Pix);')
+
+    if entrada.get('pos_meia_noite') is not None:
+        origem = entrada.get('origem_arrasto', '')
+        quando = f' de {origem[:5]}' if origem else ''
+        partes.append(f'· R$ {brl(entrada["pos_meia_noite"])} de vendas após a '
+                      f'meia-noite{quando}, que liquidam hoje;')
 
     if entrada['voucher'] is not None:
         partes.append(f'· R$ {brl(entrada["voucher"])} de recebimento de períodos '
@@ -510,6 +641,17 @@ def main():
     parser.add_argument('--bruto', action='store_true',
                         help='nao aplicar taxas: entrada prevista no bruto')
     parser.add_argument('--entrada', help='JSON para forcar vendas, voucher, a_prazo ou b2b')
+    parser.add_argument('--pos-meia-noite', dest='pos_meia_noite', action='append',
+                        default=[], metavar='[FORMA=]VALOR',
+                        help='venda feita depois do corte (entra na previsao do dia '
+                             'seguinte, nao na de amanha). Aceita credito=, debito=, '
+                             'pix= ou so o total, que e rateado. Pode repetir.')
+    parser.add_argument('--corte', default=HORA_CORTE, metavar='HH:MM',
+                        help=f'horario do corte (padrao: {HORA_CORTE})')
+    parser.add_argument('--arrasto', default=POS_MEIA_NOITE_PADRAO, metavar='CSV',
+                        help=f'arquivo do arrasto (padrao: {POS_MEIA_NOITE_PADRAO})')
+    parser.add_argument('--sem-arrasto', dest='sem_arrasto', action='store_true',
+                        help='ignora o que ficou gravado de ontem')
     args = parser.parse_args()
 
     dias, cnpj = ler_pdf(args.pdf)
@@ -588,10 +730,36 @@ def main():
     titulos = ler_a_prazo(args.a_prazo)
     override = json.load(open(args.entrada)) if args.entrada else None
     data_prevista = datetime.datetime.strptime(dia_previsto, '%d/%m/%Y').date()
+
+    # --- corte da meia-noite -------------------------------------------------
+    # o que passou depois do corte sai da previsao de amanha e fica gravado
+    # para entrar na de depois de amanha
+    agrupado_previsao = dict(agrupado)
+    registros = ler_arrasto(args.arrasto)
+    gravados = []
+    if args.pos_meia_noite:
+        porforma = ler_pos_meia_noite_args(args.pos_meia_noite, agrupado)
+        for forma, valor in porforma.items():
+            agrupado_previsao[forma] = agrupado_previsao.get(forma, 0.0) - valor
+        entra_em = (data_prevista + datetime.timedelta(days=1)).strftime('%d/%m/%Y')
+        gravados = gravar_arrasto(args.arrasto, registros, dias_usados[-1],
+                                  porforma, entra_em, args.corte)
+        registros = ler_arrasto(args.arrasto)
+
+    arrasto, origem_arrasto = [], ''
+    if not args.sem_arrasto:
+        dearrastar = [r for r in registros if r['entrada'] == dia_previsto]
+        porforma_hoje = OrderedDict()
+        for r in dearrastar:
+            porforma_hoje[r['forma']] = porforma_hoje.get(r['forma'], 0.0) + r['valor']
+            origem_arrasto = r['origem']
+        arrasto = [(forma, valor) for forma, valor in porforma_hoje.items()]
     eh_segunda = data_prevista.weekday() == SEGUNDA
-    entrada = calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
-                               ifood, args.b2b, override, liquido=not args.bruto,
-                               ifood_manual=ifood_manual, ifood_entra=not eh_segunda)
+    entrada = calcular_entrada(agrupado_previsao, agrupado_anterior, titulos,
+                               dia_previsto, ifood, args.b2b, override,
+                               liquido=not args.bruto, ifood_manual=ifood_manual,
+                               ifood_entra=not eh_segunda, arrasto=arrasto)
+    entrada['origem_arrasto'] = origem_arrasto
     entrada['janela_ifood'] = janela
     # na segunda o repasse cai na quarta seguinte
     entrada['data_repasse'] = (data_prevista + datetime.timedelta(days=2)
@@ -624,6 +792,23 @@ def main():
     for forma, bruto, taxa, liq in entrada['detalhe_vendas']:
         print(f'  {forma:<28} {brl(bruto):>14} {brl(taxa * 100)+"%":>7} {brl(liq):>14}')
     print(f'  {"= cartao + pix":<28} {"":>14} {"":>7} {brl(entrada["vendas"]):>14}')
+
+    if gravados:
+        total_corte = sum(r['valor'] for r in gravados)
+        print(f'    (-) depois das {args.corte} de {dias_usados[-1][:5]}: '
+              f'R$ {brl(total_corte)} -- guardado para {gravados[0]["entrada"]}')
+
+    if entrada.get('pos_meia_noite') is not None:
+        print(f'  depois da meia-noite de {origem_arrasto} (liquida hoje)')
+        for forma, bruto, taxa, liq in entrada['detalhe_arrasto']:
+            print(f'    {forma:<26} {brl(bruto):>14} {brl(taxa * 100)+"%":>7} {brl(liq):>14}')
+        print(f'  {"= depois da meia-noite":<28} {"":>14} {"":>7} '
+              f'{brl(entrada["pos_meia_noite"]):>14}')
+    elif not args.sem_arrasto:
+        proximas = sorted({r['entrada'] for r in registros})
+        if proximas:
+            print(f'  depois da meia-noite         nada guardado para {dia_previsto}')
+            print(f'    datas guardadas: {", ".join(proximas)}')
 
     if agrupado_anterior is None:
         print('  voucher D+30                 FALTA --mes-anterior')
