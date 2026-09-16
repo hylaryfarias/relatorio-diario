@@ -72,7 +72,7 @@ Mudança de agrupamento se faz lá, não na mão na resposta.
 | **Cartão + Pix** | `TEF - CREDITO` + `TEF - DEBITO` + `PIX MAQUININHA` do período atual, **já agrupados** (ou seja, com CARTAO CREDITO e CARTAO DEBITO dentro), **líquidos de taxa**. |
 | **Voucher D+30** | soma de `VOUCHER` + `TEF - VOUCHER` + `TEF - TICKET` do PDF de `--mes-anterior`. Voucher liquida em 30 dias, então o previsto de hoje é a venda de voucher de um mês atrás. |
 | **Repasse do iFood** | **valor informado na mão** em `--ifood-valor`, já líquido, por entidade (Grupo Ragga, Dell Iris). Cai na quarta, referente à semana segunda a domingo anterior. |
-| **Vendas a prazo** | `vendas_a_prazo.csv`, só os títulos cujo `VENCIMENTO` é **exatamente** a data prevista. Fora dessa data a parcela não entra. |
+| **Vendas a prazo** | `vendas_a_prazo.csv`, os títulos cujo `VENCIMENTO` é o **dia anterior** à data prevista: é boleto, compensa em **D+1** (vence 20/09 → entra na previsão de 21/09). Fora disso a parcela não entra. |
 | **B2B iKI** | ainda **sem base**. Entra só quando vier `--b2b`. |
 | **Depois da meia-noite** | o que foi vendido depois do corte **sai** da previsão de amanhã e fica gravado em `pos_meia_noite.csv` para entrar sozinho na do dia seguinte. Valor informado em `--pos-meia-noite`. |
 
@@ -406,9 +406,14 @@ Quando ela mandar títulos novos, acrescentar linhas no arquivo e commitar.
   data passada fica de fora** até ela dar uma data nova — a parcela só entra no
   dia exato do vencimento, então uma data velha nunca mais apareceria.
 
+**É boleto, então compensa em D+1**: o título entra na previsão do **dia
+seguinte ao vencimento**, não no dia do vencimento. Quem manda nisso é
+`A_PRAZO_COMPENSACAO` no topo de `gerar_relatorio.py` — se um dia a
+compensação mudar, é trocar o número lá.
+
 Cuidado para **não contar em dobro**: a venda a prazo já entrou na venda bruta
-no dia da venda; o que entra aqui é o **caixa** no dia do vencimento. São
-coisas diferentes, e é por isso que `VENDA A PRAZO` não está em `CARTAO_E_PIX`.
+no dia da venda; o que entra aqui é o **caixa** na compensação. São coisas
+diferentes, e é por isso que `VENDA A PRAZO` não está em `CARTAO_E_PIX`.
 
 ## Conferências que o script já faz
 
@@ -417,7 +422,8 @@ coisas diferentes, e é por isso que `VENDA A PRAZO` não está em `CARTAO_E_PIX
 - Imprime o total de cada dia para bater com o rodapé do PDF.
 - Avisa quando o período do mês anterior tem número de dias diferente do atual
   (aí o voucher D+30 sai desproporcional).
-- Mostra os próximos vencimentos a prazo quando nenhum cai na data prevista.
+- Mostra os vencimentos da tabela, com a data em que cada um entra (D+1),
+  quando nenhum boleto compensa na data prevista.
 
 Se o PDF vier sem nenhum dia reconhecido, o layout do Cloud Commerce mudou —
 conferir `ROW_RE` e `DAY_RE`.
