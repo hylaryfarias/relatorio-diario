@@ -695,7 +695,7 @@
       var bt = document.createElement("button");
       bt.type = "button";
       bt.className = "aba" + (bl.id === estado.aba ? " ativa" : "");
-      bt.textContent = bl.atual ? ("Em aberto" + (estado.sangria.length ? " \u00b7 " + periodoCarregado() : ""))
+      bt.textContent = bl.atual ? (estado.sangria.length ? periodoCarregado() : "Em aberto")
                                 : (bl.nome || "semana");
       bt.addEventListener("click", function(){
         estado.aba = bl.id; escolhaTexto = bl.id; salvarDados(); render();
@@ -1165,7 +1165,7 @@
     if(!existe) atual = bs[0].id;
     escolhaTexto = atual;
     sel.innerHTML = bs.map(function(b){
-      var rot = (b.id ? "" : "Em aberto · ") + (b.nome || "semana");
+      var rot = b.nome || "semana";
       return '<option value="'+esc(b.id)+'"'+(b.id===atual?" selected":"")+'>'+esc(rot)+'</option>';
     }).join("");
     var bloco = bs.filter(function(b){ return b.id === atual; })[0];
