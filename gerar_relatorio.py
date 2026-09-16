@@ -144,8 +144,11 @@ TAXA_VOUCHER = 0.069
 FORMAS_VOUCHER = ['VOUCHER', 'TEF - VOUCHER', 'TEF - TICKET']
 
 # Venda a prazo (B2B das BGs, Casaria etc.): tabela de recebiveis com data de
-# vencimento em vendas_a_prazo.csv. Cada titulo entra na entrada prevista so no
-# dia do seu vencimento -- nao no dia da venda, que ja foi na venda bruta.
+# vencimento em vendas_a_prazo.csv. O titulo NAO entra no dia da venda -- essa ja
+# foi na venda bruta -- e tambem nao entra no dia do vencimento: e BOLETO, que
+# compensa em D+1. Entao o titulo entra na previsao do DIA SEGUINTE ao vencimento
+# (vence 20/09 -> entra na previsao de 21/09).
+A_PRAZO_COMPENSACAO = 1   # dias entre o vencimento do boleto e o credito
 A_PRAZO_PADRAO = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               'vendas_a_prazo.csv')
 
@@ -496,10 +499,13 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
 
     Com liquido=True (padrao) cartao, voucher e a estimativa de iFood saem
     liquidos das taxas. Venda a prazo e B2B saem brutos (boleto).
-    a_prazo  -> titulos a prazo que vencem exatamente em dia_previsto
+    a_prazo  -> boletos que venceram no dia anterior (compensam em D+1)
     b2b      -> iKI Produtos Alimenticios; None enquanto nao houver base
     """
-    vencendo = [t for t in titulos if t['vencimento'] == dia_previsto]
+    # boleto compensa em D+1: o que entra hoje venceu ontem
+    venc_alvo = (datetime.datetime.strptime(dia_previsto, '%d/%m/%Y').date()
+                 - datetime.timedelta(days=A_PRAZO_COMPENSACAO)).strftime('%d/%m/%Y')
+    vencendo = [t for t in titulos if t['vencimento'] == venc_alvo]
 
     # detalhe por forma, para poder auditar bruto -> taxa -> liquido
     detalhe = []
@@ -539,6 +545,7 @@ def calcular_entrada(agrupado, agrupado_anterior, titulos, dia_previsto,
         'a_prazo': sum(t['valor'] for t in vencendo) if vencendo else None,
         'b2b': b2b,
         'titulos_a_prazo': vencendo,
+        'vencimento_a_prazo': venc_alvo,
     }
     if override:
         entrada.update({k: v for k, v in override.items() if k in PARCELAS})
@@ -594,8 +601,9 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
 
     if entrada['a_prazo'] is not None:
         quantos = len(entrada['titulos_a_prazo'])
+        venc = entrada.get('vencimento_a_prazo', dia_previsto)
         partes.append(f'· R$ {brl(entrada["a_prazo"])} de vendas a prazo com '
-                      f'vencimento em {dia_previsto[:5]} ({quantos} títulos);')
+                      f'vencimento em {venc[:5]} ({quantos} títulos);')
 
     if entrada['b2b'] is not None:
         partes.append(f'· R$ {brl(entrada["b2b"])} referente a iKI Produtos '
@@ -842,14 +850,20 @@ def main():
         print(f'    {janela[0]:%d/%m} a {janela[1]:%d/%m}'
               + (f', faltam {len(ifood_faltando)} dia(s)' if ifood_faltando else ''))
 
+    venc_alvo = entrada.get('vencimento_a_prazo', dia_previsto)
     if entrada['a_prazo'] is None:
-        proximos = sorted({t['vencimento'] for t in titulos})
-        print(f'  vendas a prazo               nenhum titulo vence em {dia_previsto}')
+        print(f'  vendas a prazo               nenhum boleto venceu em {venc_alvo} '
+              f'(entraria hoje, D+1)')
+        proximos = sorted({t['vencimento'] for t in titulos},
+                          key=lambda d: datetime.datetime.strptime(d, '%d/%m/%Y'))
         if proximos:
-            print(f'    proximos vencimentos: {", ".join(proximos)}')
+            entradas = ', '.join(
+                f'{d} (entra {(datetime.datetime.strptime(d, "%d/%m/%Y").date() + datetime.timedelta(days=A_PRAZO_COMPENSACAO)):%d/%m})'
+                for d in proximos)
+            print(f'    vencimentos na tabela: {entradas}')
     else:
-        print(f'  {"vendas a prazo":<28} R$ {brl(entrada["a_prazo"]):>13} '
-              f'({len(entrada["titulos_a_prazo"])} titulos)')
+        print(f'  {"vendas a prazo (boleto D+1)":<28} R$ {brl(entrada["a_prazo"]):>13} '
+              f'({len(entrada["titulos_a_prazo"])} titulos, venc. {venc_alvo})')
 
     print(f'  {"B2B iKI":<28} '
           f'{"SEM BASE" if entrada["b2b"] is None else "R$ " + brl(entrada["b2b"])}')
