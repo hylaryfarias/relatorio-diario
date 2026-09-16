@@ -639,6 +639,11 @@ def main():
                         help='repasse do iFood JA LIQUIDO, informado na mao; pode repetir '
                              '(ex.: --ifood-valor "Grupo Ragga=401827.58"). Tem precedencia '
                              'sobre --ifood')
+    parser.add_argument('--ifood-liquido', dest='ifood_liquido', action='append',
+                        default=[], metavar='[ROTULO=]VALOR',
+                        help='liquido do relatorio de pedidos, ANTES da antecipacao: '
+                             'o script aplica os 1,59% sozinho. Use este em vez de '
+                             '--ifood-valor quando o numero vier do relatorio.')
     parser.add_argument('--ifood-faturado', dest='ifood_faturado', type=float,
                         help='faturamento bruto da semana do iFood, para mostrar junto da previa')
     parser.add_argument('--b2b', type=float, help='valor do B2B da iKI, quando houver base')
@@ -708,7 +713,19 @@ def main():
 
     janela = janela_ifood(dia_previsto)
     ifood_manual = ler_ifood_manual(args.ifood_valores)
+    # o relatorio de pedidos nao traz a antecipacao: aplicar SEMPRE, aqui, para
+    # nao depender de ninguem lembrar na hora do envio
+    antecipado = []
+    for rotulo, valor in ler_ifood_manual(args.ifood_liquido):
+        final = valor * (1 - IFOOD_ANTECIPACAO)
+        antecipado.append((rotulo, valor, final))
+        ifood_manual.append((f'{rotulo} (-1,59% antecip.)', final))
     ifood, ifood_faltando = None, []
+    if args.ifood_valores and not args.ifood_liquido:
+        print('AVISO: --ifood-valor entra como valor FINAL. Se esse numero saiu do '
+              'relatorio de pedidos, ele ainda nao tem a antecipacao de 1,59% -- '
+              'use --ifood-liquido para o script aplicar.', file=sys.stderr)
+
     if ifood_manual and args.ifood:
         print('AVISO: --ifood-valor tem precedencia; os PDFs de --ifood foram ignorados.',
               file=sys.stderr)
@@ -839,7 +856,13 @@ def main():
               + ('fora de segunda/quarta' if janela is None else 'FALTA --ifood'))
     elif entrada['ifood_manual']:
         print(f'  repasse iFood (na mao, ja liquido)')
+        for rotulo, bruto, final in antecipado:
+            print(f'    {rotulo:<26} {brl(bruto):>14} '
+                  f'{brl(IFOOD_ANTECIPACAO * 100)+"%":>7} {brl(final):>14}')
+        # os que vieram por --ifood-liquido ja apareceram com a memoria de calculo
         for rotulo, valor in entrada['ifood_manual']:
+            if rotulo.endswith('(-1,59% antecip.)'):
+                continue
             print(f'    {rotulo:<26} {"":>14} {"":>7} {brl(valor):>14}')
         print(f'  {"= repasse iFood":<28} {"":>14} {"":>7} {brl(entrada["ifood"]):>14}')
         if janela is not None:

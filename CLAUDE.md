@@ -213,6 +213,23 @@ sai do líquido igual — e é a maior das deduções.
 4. **Aplicar 1,59% de antecipação sobre o total.** O relatório de pedidos
    **não traz a antecipação** — ela incide depois, sobre o líquido, na média.
 
+> **REGRA DURA: o número do iFood SEMPRE sai com a antecipação aplicada.**
+> Nunca mandar o líquido cru do relatório de pedidos, nem na prévia de segunda
+> nem no repasse de quarta, e nunca perguntar se aplica — ela já parametrizou
+> isso. Em 14/09 a prévia foi mandada com R$ 422.999,70 (sem a antecipação) e a
+> diretoria ficou esperando R$ 422 mil de um repasse de R$ 416.274,00.
+>
+> Para não depender de ninguém lembrar, passar o número do relatório em
+> **`--ifood-liquido`**, que aplica os 1,59% sozinho e mostra a memória de
+> cálculo. O `--ifood-valor` continua existindo para o **valor final**, já com
+> tudo aplicado — e agora avisa no console quando é usado sozinho.
+>
+> ```bash
+> python3 gerar_relatorio.py 15-09.pdf --mes-anterior 15-08.pdf \
+>     --ifood-liquido "Semana 07 a 13/09=422999.70" --saida saida
+> #   422.999,70 - 1,59% = 416.274,00
+> ```
+
 Feito em 07–13/09:
 
 | | |
