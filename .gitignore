@@ -5,3 +5,5 @@ entrada.json
 __pycache__/
 *.pyc
 recebimentos.json
+*.xlsx
+*.zip
