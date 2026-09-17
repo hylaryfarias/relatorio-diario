@@ -636,17 +636,18 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
               f'💰 *ENTRADA PREVISTA PRO DIA {dia_previsto[:5]}*', '',
               f'*R$ {brl(entrada["total"])}*', '']
 
+    # a madrugada do dia anterior entra somada a forma dela: em linha separada
+    # confunde quem le na ponta. A memoria de calculo fica no console.
+    por_forma = OrderedDict()
     for forma, _bruto, _taxa, liq in entrada['detalhe_vendas']:
+        por_forma[forma] = por_forma.get(forma, 0.0) + liq
+    for forma, _bruto, _taxa, liq in entrada.get('detalhe_arrasto') or []:
+        por_forma[forma] = por_forma.get(forma, 0.0) + liq
+    for forma, liq in por_forma.items():
         if not liq:
             continue
         rotulo = ROTULO_TEXTO.get(forma, forma.title())
         partes.append(f'· R$ {brl(liq)} de {rotulo} {referencia};')
-
-    if entrada.get('pos_meia_noite') is not None:
-        origem = entrada.get('origem_arrasto', '')
-        quando = f' de {origem[:5]}' if origem else ''
-        partes.append(f'· R$ {brl(entrada["pos_meia_noite"])} de vendas após a '
-                      f'meia-noite{quando}, que liquidam hoje;')
 
     if entrada['voucher'] is not None:
         partes.append(f'· R$ {brl(entrada["voucher"])} de recebimento de períodos '
