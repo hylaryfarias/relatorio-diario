@@ -58,6 +58,10 @@ CARTAO_E_PIX = ['TEF - CREDITO', 'TEF - DEBITO', 'PIX MAQUININHA']
 # O PDF de vendas por forma de pagamento NAO tem hora: o valor depois do corte
 # vem informado em --pos-meia-noite.
 HORA_CORTE = '00:00'
+# O Cloudfy NAO vira o dia: a venda feita depois da meia-noite continua
+# gravada na data do dia anterior. Entao tudo o que tem hora antes da
+# abertura das lojas e madrugada -- venda do dia seguinte no calendario.
+HORA_ABERTURA = 5
 POS_MEIA_NOITE_PADRAO = 'pos_meia_noite.csv'
 
 # apelidos aceitos em --pos-meia-noite, para nao ter que digitar o nome exato
@@ -422,8 +426,8 @@ def ler_pos_meia_noite_args(entradas, agrupado):
     porforma, solto = {}, 0.0
     for bruto in entradas:
         rotulo, _, valor = bruto.rpartition('=')
-        try:
-            numero = to_float(valor)
+        try:   # aceita 1.652,52 e 1652.52
+            numero = to_float(valor) if ',' in valor else float(valor)
         except Exception:
             raise SystemExit(f'ERRO: nao entendi o valor em --pos-meia-noite {bruto!r}.')
         if rotulo.strip():
@@ -447,6 +451,51 @@ def ler_pos_meia_noite_args(entradas, agrupado):
             raise SystemExit(f'ERRO: --pos-meia-noite de {forma} (R$ {brl(valor)}) '
                              f'e maior que a venda do dia (R$ {brl(agrupado.get(forma, 0.0))}).')
     return porforma
+
+
+def ler_cupons(caminho):
+    """Le o Relatriodecuponsdevendas_*.xlsx: cupom a cupom, com hora e forma.
+
+    Devolve (madrugada, total_por_forma, total_geral), tudo ja agrupado pelas
+    regras de GRUPOS. 'madrugada' e o que foi vendido da meia-noite ate a
+    abertura das lojas -- ja e o dia seguinte no calendario, e liquida com ele.
+
+    Confere com o PDF: o total daqui tem de bater com a venda bruta.
+    """
+    try:
+        import openpyxl
+    except ImportError:
+        raise SystemExit('ERRO: --cupons precisa do openpyxl (pip install openpyxl).')
+
+    wb = openpyxl.load_workbook(caminho, read_only=True, data_only=True)
+    ws = wb[wb.sheetnames[0]]
+    linhas = ws.iter_rows(values_only=True)
+    cab = [str(c or '').strip().lower() for c in next(linhas)]
+
+    def coluna(*nomes):
+        for i, titulo in enumerate(cab):
+            if any(titulo.startswith(n) for n in nomes):
+                return i
+        raise SystemExit(f'ERRO: coluna {nomes[0]!r} nao achada em {caminho}. '
+                         f'Cabecalho: {", ".join(cab)}')
+
+    cH, cF, cV = coluna('hora'), coluna('desc. pagam', 'forma'), coluna('vl. pagamento', 'valor')
+
+    madrugada, total = OrderedDict(), OrderedDict()
+    for linha in linhas:
+        if not linha or linha[cV] is None:
+            continue
+        forma = str(linha[cF] or '').strip().upper()
+        for destino, membros in GRUPOS.items():   # agrupa igual ao PDF
+            if forma in membros:
+                forma = destino
+                break
+        valor = float(linha[cV] or 0)
+        total[forma] = total.get(forma, 0.0) + valor
+        hora = str(linha[cH] or '00:00:00')[:2]
+        if hora.isdigit() and int(hora) < HORA_ABERTURA:
+            madrugada[forma] = madrugada.get(forma, 0.0) + valor
+    return madrugada, total, sum(total.values())
 
 
 def ler_arrasto(caminho):
@@ -659,6 +708,9 @@ def main():
                         help='venda feita depois do corte (entra na previsao do dia '
                              'seguinte, nao na de amanha). Aceita credito=, debito=, '
                              'pix= ou so o total, que e rateado. Pode repetir.')
+    parser.add_argument('--cupons', metavar='XLSX',
+                        help='Relatriodecuponsdevendas_*.xlsx do Cloudfy: o corte '
+                             'da meia-noite sai dele, sem informar valor na mao')
     parser.add_argument('--corte', default=HORA_CORTE, metavar='HH:MM',
                         help=f'horario do corte (padrao: {HORA_CORTE})')
     parser.add_argument('--arrasto', default=POS_MEIA_NOITE_PADRAO, metavar='CSV',
@@ -762,6 +814,19 @@ def main():
     agrupado_previsao = dict(agrupado)
     registros = ler_arrasto(args.arrasto)
     gravados = []
+    if args.cupons:
+        madrugada, total_cupons, geral = ler_cupons(args.cupons)
+        if abs(geral - total) > 0.01:
+            print(f'AVISO: o relatorio de cupons soma R$ {brl(geral)} e o PDF '
+                  f'R$ {brl(total)} (diferenca de R$ {brl(geral - total)}). '
+                  f'Sao do mesmo dia?', file=sys.stderr)
+        else:
+            print(f'Cupons conferem com o PDF: R$ {brl(geral)}')
+        for forma in CARTAO_E_PIX:
+            valor = madrugada.get(forma, 0.0)
+            if valor:
+                args.pos_meia_noite.append(f'{forma}={valor:.2f}')
+
     if args.pos_meia_noite:
         porforma = ler_pos_meia_noite_args(args.pos_meia_noite, agrupado)
         for forma, valor in porforma.items():

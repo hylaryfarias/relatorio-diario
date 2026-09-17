@@ -83,13 +83,39 @@ de 27/08 o previsto (R$ 101.481,14) bate com crédito + débito + Pix
 
 ### O corte da meia-noite
 
-O relatório do Cloudfy **fecha o dia às 02h**: o que foi vendido depois da
-meia-noite entra no dia anterior. Para a **venda** isso está certo — é a mesma
-noite de operação, e o quadrinho tem que sair assim. Para o **recebimento**
-não: a adquirente carimba a transação pela data do calendário, então o cartão
-passado 00h30 liquida junto com o dia seguinte.
+**O Cloudfy não vira o dia.** Ela confirmou em 17/09: a venda feita depois da
+meia-noite continua gravada na data do dia anterior, o relatório não corta às
+02h nem em hora nenhuma. Para a **venda** isso está certo — é a mesma noite de
+operação, e o quadrinho tem que sair assim. Para o **recebimento** não: a
+adquirente carimba a transação pela data do calendário, então o cartão passado
+00h30 liquida junto com o dia seguinte.
 
-Então esse pedaço **sai da previsão de amanhã e entra na de depois de amanhã**:
+Então esse pedaço **sai da previsão de amanhã e entra na de depois de amanhã**.
+O jeito certo de fazer isso é com o relatório de cupons, que traz a hora:
+
+```bash
+python3 gerar_relatorio.py 16-09.pdf --mes-anterior 16-08.pdf \
+    --cupons Relatriodecuponsdevendas_*.xlsx --saida saida
+```
+
+`--cupons` lê o `Relatriodecuponsdevendas_*.xlsx` do Cloudfy (aba `Planilha`,
+cabeçalho na linha 1: `Filial · Caixa · Data · Cupom · Hora · Itens · Chave ·
+CPF/CNPJ · Nome do cliente · Desc. pagam. · Nr. parc · Vl. pagamento`), agrupa
+as formas pelas mesmas regras de `GRUPOS` e separa sozinho o que foi vendido
+**da meia-noite até `HORA_ABERTURA` (05h)**. Ele também **confere o total
+contra o PDF** e avisa se divergir.
+
+> **O relatório de cupons bate exatamente com o PDF.** Medido em 16/09/2026:
+> R$ 175.023,83 nos dois, e forma a forma idêntico (17 filiais, 4.454 cupons).
+> É a mesma base, só que aberta — então dá para pedir esse arquivo junto com o
+> PDF e o corte sai sem ninguém digitar nada.
+
+Medido em 16/09: R$ 3.866,81 de cartão + Pix depois da meia-noite (crédito
+R$ 1.652,52, débito R$ 1.250,16, Pix R$ 964,13), de um total de R$ 11.385,50
+vendidos na madrugada — o resto é pagamento online, dinheiro, a prazo e
+voucher, que não entram nessa parcela.
+
+Sem o xlsx, dá para informar na mão:
 
 ```bash
 python3 gerar_relatorio.py 15-09.pdf --mes-anterior 15-08.pdf \
@@ -110,9 +136,10 @@ python3 gerar_relatorio.py 15-09.pdf --mes-anterior 15-08.pdf \
 - `--corte HH:MM` só muda o rótulo (padrão `00:00`); `--sem-arrasto` ignora o
   que está guardado; `--arrasto outro.csv` aponta para outro arquivo.
 
-> **O PDF de vendas por forma de pagamento não tem hora.** O valor depois do
-> corte tem que vir de fora — de um relatório do Cloudfy com hora ou do que ela
-> apurar. Sem `--pos-meia-noite` nada é separado e o comportamento é o de antes.
+> **O PDF de vendas por forma de pagamento não tem hora** — por isso o
+> `--cupons`. Sem `--cupons` e sem `--pos-meia-noite` nada é separado, e o
+> script **avisa** que a previsão saiu com tudo e que nada foi guardado para o
+> dia seguinte.
 
 ### A regra do iFood
 
