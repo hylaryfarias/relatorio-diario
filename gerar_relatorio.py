@@ -43,6 +43,14 @@ GRUPOS = OrderedDict([
 # PAGAMENTO ONLINE fica fora daqui porque tem repasse proprio -- ver IFOOD.
 CARTAO_E_PIX = ['TEF - CREDITO', 'TEF - DEBITO', 'PIX MAQUININHA']
 
+# como cada forma aparece no texto do WhatsApp: ela pediu o previsto aberto,
+# uma linha por forma, em vez de um valor unico de cartao + pix
+ROTULO_TEXTO = {
+    'TEF - CREDITO':  'crédito',
+    'TEF - DEBITO':   'débito',
+    'PIX MAQUININHA': 'Pix',
+}
+
 # ---------------------------------------------------------------------------
 # Corte da meia-noite.
 #
@@ -628,8 +636,11 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
               f'💰 *ENTRADA PREVISTA PRO DIA {dia_previsto[:5]}*', '',
               f'*R$ {brl(entrada["total"])}*', '']
 
-    partes.append(f'· R$ {brl(entrada["vendas"])} são referentes às vendas '
-                  f'{referencia} (Crédito, Débito e Pix);')
+    for forma, _bruto, _taxa, liq in entrada['detalhe_vendas']:
+        if not liq:
+            continue
+        rotulo = ROTULO_TEXTO.get(forma, forma.title())
+        partes.append(f'· R$ {brl(liq)} de {rotulo} {referencia};')
 
     if entrada.get('pos_meia_noite') is not None:
         origem = entrada.get('origem_arrasto', '')
@@ -638,8 +649,8 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
                       f'meia-noite{quando}, que liquidam hoje;')
 
     if entrada['voucher'] is not None:
-        partes.append(f'· R$ {brl(entrada["voucher"])} de recebimento de períodos '
-                      f'anteriores (Voucher D+30);')
+        partes.append(f'· R$ {brl(entrada["voucher"])} de voucher, de venda de um '
+                      f'mês atrás (D+30);')
 
     if entrada['ifood'] is not None:
         janela = entrada['janela_ifood']
