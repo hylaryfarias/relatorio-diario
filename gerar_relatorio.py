@@ -770,6 +770,10 @@ def main():
         gravados = gravar_arrasto(args.arrasto, registros, dias_usados[-1],
                                   porforma, entra_em, args.corte)
         registros = ler_arrasto(args.arrasto)
+    else:
+        print('AVISO: nada em --pos-meia-noite. A previsao esta com TUDO o que o '
+              'relatorio traz, inclusive a venda feita depois da meia-noite, e nada '
+              'foi guardado para a previsao do dia seguinte.', file=sys.stderr)
 
     arrasto, origem_arrasto = [], ''
     if not args.sem_arrasto:
