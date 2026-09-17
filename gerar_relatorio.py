@@ -649,8 +649,8 @@ def montar_texto(dias_usados, total, entrada, dia_previsto):
                       f'meia-noite{quando}, que liquidam hoje;')
 
     if entrada['voucher'] is not None:
-        partes.append(f'· R$ {brl(entrada["voucher"])} de voucher, de venda de um '
-                      f'mês atrás (D+30);')
+        partes.append(f'· R$ {brl(entrada["voucher"])} de recebimento de períodos '
+                      f'anteriores (Voucher D+30);')
 
     if entrada['ifood'] is not None:
         janela = entrada['janela_ifood']
