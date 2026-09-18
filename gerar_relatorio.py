@@ -489,7 +489,8 @@ def ler_cupons(caminho):
 
     cH, cF, cV = coluna('hora'), coluna('desc. pagam', 'forma'), coluna('vl. pagamento', 'valor')
 
-    madrugada, total = OrderedDict(), OrderedDict()
+    madrugada, total, dias = OrderedDict(), OrderedDict(), OrderedDict()
+    cD = coluna('data')
     for linha in linhas:
         if not linha or linha[cV] is None:
             continue
@@ -503,7 +504,10 @@ def ler_cupons(caminho):
         hora = str(linha[cH] or '00:00:00')[:2]
         if hora.isdigit() and int(hora) < HORA_ABERTURA:
             madrugada[forma] = madrugada.get(forma, 0.0) + valor
-    return madrugada, total, sum(total.values())
+        dia = linha[cD]
+        dias[dia.strftime('%d/%m/%Y') if hasattr(dia, 'strftime')
+             else str(dia).strip()] = True
+    return madrugada, total, sum(total.values()), list(dias)
 
 
 def ler_arrasto(caminho):
@@ -759,11 +763,18 @@ def main():
 
     agrupado_anterior = None
     if args.mes_anterior:
-        dias_ant, _ = ler_pdf(args.mes_anterior)
-        if not dias_ant:
-            raise SystemExit('ERRO: nenhum dia no PDF do mes anterior.')
-        agrupado_anterior, _ = agrupar(dias_ant, 'PDF do mes anterior')
-        dias_ant_usados = list(dias_ant)
+        # o mes anterior pode vir como PDF ou como o xlsx de cupons -- os dois
+        # trazem a mesma coisa, e dela so sai o voucher D+30
+        if args.mes_anterior.lower().endswith(('.xlsx', '.xls')):
+            _mad, agrupado_anterior, _geral, dias_ant_usados = ler_cupons(args.mes_anterior)
+            if not dias_ant_usados:
+                raise SystemExit('ERRO: nenhum dia no xlsx do mes anterior.')
+        else:
+            dias_ant, _ = ler_pdf(args.mes_anterior)
+            if not dias_ant:
+                raise SystemExit('ERRO: nenhum dia no PDF do mes anterior.')
+            agrupado_anterior, _ = agrupar(dias_ant, 'PDF do mes anterior')
+            dias_ant_usados = list(dias_ant)
         if len(dias_ant_usados) != len(dias_usados):
             print(f'AVISO: o periodo atual tem {len(dias_usados)} dia(s) e o do mes '
                   f'anterior {len(dias_ant_usados)}. O voucher D+30 fica desproporcional.',
@@ -827,7 +838,7 @@ def main():
     registros = ler_arrasto(args.arrasto)
     gravados = []
     if args.cupons:
-        madrugada, total_cupons, geral = ler_cupons(args.cupons)
+        madrugada, total_cupons, geral, _dias = ler_cupons(args.cupons)
         if abs(geral - total) > 0.01:
             print(f'AVISO: o relatorio de cupons soma R$ {brl(geral)} e o PDF '
                   f'R$ {brl(total)} (diferenca de R$ {brl(geral - total)}). '
